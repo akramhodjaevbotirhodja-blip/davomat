@@ -253,16 +253,18 @@ async def require_database(request: Request, call_next):
     u yerda ishlay olmaydi: `DATABASE_URL` majburiy.
     """
     if os.environ.get("VERCEL") and not D.IS_PG:
-        found = D.db_env_names()
-        if found:
-            # O'zgaruvchi bor, lekin yaroqli postgres manzili emas
-            diag = ("<p style='%s'>Topilgan o'zgaruvchilar: %s</p>"
-                    "<p style='%s'>Ulardan hech biri "
-                    "<code style='%s'>postgresql://</code> bilan boshlanmaydi — "
-                    "qiymat noto'g'ri nusxalangan bo'lishi mumkin.</p>"
-                    % (DIM,
-                       ", ".join(f"<code style='{CODE}'>{n}</code>" for n in found),
-                       DIM, CODE))
+        report = D.db_env_report()
+        if report:
+            rows = "".join(
+                f"<li style='margin:3px 0'><code style='{CODE}'>{name}</code> "
+                + ("— qiymati postgresql:// bilan boshlanmaydi"
+                   if considered else "— bu nom manzil uchun ishlatilmaydi")
+                + "</li>"
+                for name, considered, valid in report if not valid
+            )
+            diag = (f"<p style='{DIM}'>Topilgan o'zgaruvchilar, lekin hech biri "
+                    "yaroqli manzil emas:</p>"
+                    f"<ul style='{DIM};text-align:left;display:inline-block'>{rows}</ul>")
         else:
             diag = (f"<p style='{DIM}'>Hozircha bironta ham baza o'zgaruvchisi "
                     "ko'rinmayapti. Tekshiring: o'zgaruvchi <b>Production</b> "

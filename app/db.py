@@ -15,22 +15,42 @@ from datetime import datetime, date
 
 from .config import DB_PATH, DATA_DIR, DEFAULT_SETTINGS, TZ
 
-# Vercel'ning turli Postgres integratsiyalari o'zgaruvchini har xil nomlaydi.
-# Birinchi topilgani ishlatiladi; ulanish hovuzli (pooled) variantlar oldinda.
-URL_VARS = (
-    "DATABASE_URL",
-    "POSTGRES_URL",
-    "NEON_DATABASE_URL",
-    "DATABASE_URL_UNPOOLED",
-    "POSTGRES_URL_NON_POOLING",
-)
+def _priority(name: str) -> int | None:
+    """O'zgaruvchi nomi baza manzilini saqlashi mumkinmi va qay darajada mos?
+
+    Vercel integratsiyalari nomlarga prefiks qo'shishi mumkin (masalan
+    `CHECKIN_DATABASE_URL`), shuning uchun nomning oxiriga qaraymiz.
+    Kichik raqam — yuqoriroq ustunlik.
+    """
+    n = name.upper()
+    # Prisma varianti libpq tushunmaydigan parametrlar saqlaydi, NO_SSL esa xavfli
+    if n.endswith(("POSTGRES_PRISMA_URL", "NO_SSL")):
+        return None
+    if n == "DATABASE_URL":
+        return 0
+    if n.endswith("_DATABASE_URL"):
+        return 1
+    if n == "POSTGRES_URL" or n.endswith("_POSTGRES_URL"):
+        return 2
+    # Ulanish hovuzisiz variantlar — faqat boshqasi topilmasa
+    if n.endswith(("DATABASE_URL_UNPOOLED", "POSTGRES_URL_NON_POOLING")):
+        return 3
+    return None
+
+
+def _is_pg_url(value: str) -> bool:
+    return value.strip().startswith(("postgres://", "postgresql://"))
 
 
 def _find_url() -> tuple[str, str]:
     """Muhit o'zgaruvchilaridan baza manzilini topadi: (nomi, qiymati)."""
-    for name in URL_VARS:
+    ranked = sorted(
+        (p, name) for name in os.environ
+        if (p := _priority(name)) is not None
+    )
+    for _, name in ranked:
         value = os.environ.get(name, "").strip()
-        if value.startswith(("postgres://", "postgresql://")):
+        if _is_pg_url(value):
             return name, value
     return "", ""
 
@@ -39,12 +59,16 @@ URL_VAR_NAME, DATABASE_URL = _find_url()
 IS_PG = bool(DATABASE_URL)
 
 
-def db_env_names() -> list[str]:
-    """Mavjud baza o'zgaruvchilarining NOMLARI (tashxis uchun, qiymatsiz)."""
-    return sorted(
-        k for k in os.environ
-        if any(w in k.upper() for w in ("POSTGRES", "DATABASE", "NEON", "PG"))
-    )
+def db_env_report() -> list[tuple[str, bool, bool]]:
+    """Tashxis uchun: (nom, tekshirildimi, yaroqli manzilmi). Qiymat chiqmaydi."""
+    out = []
+    for name in sorted(os.environ):
+        if not any(w in name.upper() for w in ("POSTGRES", "DATABASE", "NEON", "PG")):
+            continue
+        considered = _priority(name) is not None
+        valid = considered and _is_pg_url(os.environ.get(name, ""))
+        out.append((name, considered, valid))
+    return out
 
 # --------------------------------------------------------------------------
 # Jadvallar
