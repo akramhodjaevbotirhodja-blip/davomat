@@ -23,7 +23,7 @@
     <table>
       <thead>
         <tr>
-          <th>F.I.Sh.</th><th>Lavozim</th>
+          <th>F.I.Sh.</th><th>Smena</th><th>Lavozim</th>
           <th>Keldi</th><th>Kechikdi</th><th>Kelmadi</th><th>Sababli</th>
           <th>Jami kechikish</th><th>Ishlangan vaqt</th>
         </tr>
@@ -32,6 +32,7 @@
         {% for r in report %}
         <tr>
           <td><b>{{ r.name }}</b></td>
+          <td class="muted small">{{ r.shift }}<br><span class="muted">{{ r.shift_time }}</span></td>
           <td class="muted">{{ r.position }}</td>
           <td style="color:var(--ok)">{{ r.came }}</td>
           <td style="color:var(--warn)">{{ r.late }}</td>
@@ -41,7 +42,7 @@
           <td>{{ r.worked_total|fmt_minutes }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="muted center">Ma'lumot yo'q</td></tr>
+        <tr><td colspan="9" class="muted center">Ma'lumot yo'q</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -63,7 +64,7 @@
       <tbody>
         {% for r in report %}
         <tr>
-          <td class="nm">{{ r.name }}</td>
+          <td class="nm">{{ r.name }}<br><span class="muted" style="font-size:10px">{{ r.shift }}</span></td>
           {% for c in r.cells %}
           <td>
             <span class="cell c-{{ c.status }}"

@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS employees (
     position    TEXT    DEFAULT '',
     department  TEXT    DEFAULT '',
     phone       TEXT    DEFAULT '',
+    shift       INTEGER NOT NULL DEFAULT 1,
     active      INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT    NOT NULL
 );
@@ -210,10 +211,35 @@ def db():
         conn.close()
 
 
+MIGRATIONS = [
+    ("employees", "shift", "INTEGER NOT NULL DEFAULT 1"),
+]
+
+
+def _columns(conn: Conn, table: str) -> set[str]:
+    if IS_PG:
+        rows = conn.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = ?",
+            (table,),
+        ).fetchall()
+        return {r["column_name"] for r in rows}
+    rows = conn.raw.execute(f"PRAGMA table_info({table})").fetchall()
+    return {r["name"] for r in rows}
+
+
+def _migrate(conn: Conn) -> None:
+    """Eski bazalarga yangi ustunlarni qo'shadi (ma'lumot yo'qolmaydi)."""
+    for table, column, definition in MIGRATIONS:
+        if column not in _columns(conn, table):
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+            print(f"  baza yangilandi: {table}.{column} qo'shildi", flush=True)
+
+
 def init_db() -> None:
     conn = connect()
     try:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         for key, value in DEFAULT_SETTINGS.items():
             conn.execute(
                 "INSERT INTO settings (key, value) VALUES (?, ?)"

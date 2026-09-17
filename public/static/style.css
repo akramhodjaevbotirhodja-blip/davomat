@@ -439,3 +439,14 @@ details.edit[open] summary { color: var(--muted); }
   margin-bottom: 0;
 }
 .check input { width: 18px; height: 18px; flex: 0 0 18px; accent-color: var(--accent); }
+
+/* ---------------- Smenalar ---------------- */
+
+.b-smena1 { background: rgba(34,167,255,.16); color: #7cc8ff; }
+.b-smena2 { background: rgba(168,85,247,.18); color: #cba6f7; }
+
+.shift-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.shift-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px; }
+.shift-card-head { font-weight: 800; margin-bottom: 8px; }
+.shift-card-head .muted { font-weight: 600; font-size: 13px; margin-left: 6px; }
+.shift-card-body { display: flex; flex-wrap: wrap; gap: 12px; font-size: 14px; font-weight: 600; }

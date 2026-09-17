@@ -41,7 +41,7 @@
             <span class="emp-sub">
               {%- if it.state == 'kelgan' %}Keldi: {{ it.check_in }}
               {%- elif it.absence %}{{ it.absence }}
-              {%- else %}{{ it.position or 'Xodim' }}{% endif -%}
+              {%- else %}{{ it.shift }}{% if it.position %} · {{ it.position }}{% endif %}{% endif -%}
             </span>
           </span>
           <span class="emp-act {{ 'act-kelish' if it.action == 'kelish' else 'act-ketish' }}">

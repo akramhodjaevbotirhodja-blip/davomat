@@ -9,6 +9,14 @@
     <div><label>Lavozim</label><input name="position" placeholder="Dasturchi"></div>
     <div><label>Bo'lim</label><input name="department" placeholder="IT"></div>
     <div><label>Telefon</label><input name="phone" placeholder="+998 90 123 45 67"></div>
+    <div>
+      <label>Smena</label>
+      <select name="shift">
+        {% for no, sh in shifts.items() %}
+          <option value="{{ no }}">{{ sh.name }} ({{ "%02d:%02d"|format(sh.start.hour, sh.start.minute) }}–{{ "%02d:%02d"|format(sh.end.hour, sh.end.minute) }})</option>
+        {% endfor %}
+      </select>
+    </div>
     <div class="shrink"><button class="btn btn-primary">+ Qo'shish</button></div>
   </form>
 </div>
@@ -17,7 +25,7 @@
 <div class="table-scroll">
   <table>
     <thead>
-      <tr><th>F.I.Sh.</th><th>Lavozim</th><th>Bo'lim</th><th>Telefon</th><th>Holat</th><th>Amallar</th></tr>
+      <tr><th>F.I.Sh.</th><th>Smena</th><th>Lavozim</th><th>Bo'lim</th><th>Telefon</th><th>Holat</th><th>Amallar</th></tr>
     </thead>
     <tbody>
       {% for e in rows %}
@@ -31,10 +39,18 @@
               <div class="f"><label>Lavozim</label><input name="position" value="{{ e.position }}"></div>
               <div class="f"><label>Bo'lim</label><input name="department" value="{{ e.department }}"></div>
               <div class="f"><label>Telefon</label><input name="phone" value="{{ e.phone }}"></div>
+              <div class="f"><label>Smena</label>
+                <select name="shift">
+                  {% for no, sh in shifts.items() %}
+                    <option value="{{ no }}" {% if (e.shift or 1) == no %}selected{% endif %}>{{ sh.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
               <button class="btn btn-sm btn-primary">Saqlash</button>
             </form>
           </details>
         </td>
+        <td><span class="badge b-smena{{ e.shift or 1 }}">{{ shifts.get(e.shift or 1, shifts[1]).name }}</span></td>
         <td class="muted">{{ e.position }}</td>
         <td class="muted">{{ e.department }}</td>
         <td class="muted">{{ e.phone }}</td>
@@ -55,7 +71,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="muted center">Hozircha xodim qo'shilmagan</td></tr>
+      <tr><td colspan="7" class="muted center">Hozircha xodim qo'shilmagan</td></tr>
       {% endfor %}
     </tbody>
   </table>

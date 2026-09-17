@@ -25,8 +25,15 @@ QR_SLOTS_AHEAD = 4
 
 DEFAULT_SETTINGS = {
     "company_name": "Kompaniya",
-    "work_start": "09:00",
-    "work_end": "18:00",
+    # 1-smena (kunduzgi)
+    "shift1_name": "1-smena",
+    "shift1_start": "09:00",
+    "shift1_end": "18:00",
+    # 2-smena (kechki) — tugashi yarim tundan o'tishi mumkin
+    "shift2_name": "2-smena",
+    "shift2_start": "18:00",
+    "shift2_end": "03:00",
+    "shift2_enabled": "1",
     "late_grace_minutes": "5",
     "min_shift_minutes": "60",       # kelgandan keyin kamida shuncha vaqt o'tsa ketish yoziladi
     "device_limit_per_hour": "3",    # bitta telefondan 1 soatda nechta odam belgilanishi mumkin

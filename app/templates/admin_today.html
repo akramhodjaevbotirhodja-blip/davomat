@@ -22,11 +22,29 @@
   <div class="stat"><div class="stat-num" style="color:#a5b4fc">{{ stats.sababli }}</div><div class="stat-lbl">Sababli</div></div>
 </div>
 
+{% if two_shifts %}
+<div class="shift-cards">
+  {% for sh in shift_stats %}
+  <div class="shift-card">
+    <div class="shift-card-head">{{ sh.name }} <span class="muted">{{ sh.vaqt }}</span></div>
+    <div class="shift-card-body">
+      <span style="color:var(--ok)">{{ sh.keldi }} keldi</span>
+      <span style="color:var(--warn)">{{ sh.kechikdi }} kechikdi</span>
+      <span style="color:var(--bad)">{{ sh.kelmadi }} kelmadi</span>
+      {% if sh.sababli %}<span style="color:#a5b4fc">{{ sh.sababli }} sababli</span>{% endif %}
+      <span class="muted">jami {{ sh.jami }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="table-scroll">
   <table>
     <thead>
       <tr>
         <th>F.I.Sh.</th>
+        {% if two_shifts %}<th>Smena</th>{% endif %}
         <th>Lavozim</th>
         <th>Holat</th>
         <th>Keldi</th>
@@ -45,6 +63,9 @@
           {% if r.manual %}<span class="muted small" title="Qo'lda kiritilgan">✎</span>{% endif %}
           {% if r.note %}<div class="muted small">{{ r.note }}</div>{% endif %}
         </td>
+        {% if two_shifts %}
+        <td><span class="badge b-smena{{ r.shift_no }}" title="{{ r.shift_time }}">{{ r.shift }}</span></td>
+        {% endif %}
         <td class="muted">{{ r.position }}</td>
         <td><span class="badge b-{{ r.status }}">{{ STATUS_LABELS.get(r.status, r.status) }}</span></td>
         <td>{{ r.check_in or '—' }}</td>
@@ -67,7 +88,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="muted center">Xodimlar ro'yxati bo'sh. <a href="/admin/xodimlar">Xodim qo'shing →</a></td></tr>
+      <tr><td colspan="{{ 9 if two_shifts else 8 }}" class="muted center">Xodimlar ro'yxati bo'sh. <a href="/admin/xodimlar">Xodim qo'shing →</a></td></tr>
       {% endfor %}
     </tbody>
   </table>

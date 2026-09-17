@@ -20,22 +20,61 @@
     <input name="company_name" value="{{ settings.company_name }}">
   </div>
 
+  <hr class="sep">
+  <h3 class="sub">🕐 Smenalar</h3>
+  <p class="muted small">
+    Har bir xodimga <b>Xodimlar</b> bo'limida smena tanlanadi. Kechikish
+    o'sha xodimning smenasi boshlanish vaqtiga qarab hisoblanadi.
+  </p>
+
   <div class="row">
     <div class="field">
-      <label>Ish boshlanishi</label>
-      <input type="time" name="work_start" value="{{ settings.work_start }}">
+      <label>1-smena nomi</label>
+      <input name="shift1_name" value="{{ settings.shift1_name }}">
     </div>
     <div class="field">
-      <label>Ish tugashi</label>
-      <input type="time" name="work_end" value="{{ settings.work_end }}">
+      <label>Boshlanishi</label>
+      <input type="time" name="shift1_start" value="{{ settings.shift1_start }}">
     </div>
     <div class="field">
-      <label>Kechikish chegarasi (daqiqa)</label>
-      <input name="late_grace_minutes" value="{{ settings.late_grace_minutes }}">
+      <label>Tugashi</label>
+      <input type="time" name="shift1_end" value="{{ settings.shift1_end }}">
+    </div>
+  </div>
+
+  <label class="check" style="margin:10px 0 0">
+    <input type="checkbox" name="shift2_enabled" value="1"
+           {% if settings.shift2_enabled == '1' %}checked{% endif %}>
+    <span>2-smena ishlatilsin</span>
+  </label>
+
+  <div class="row" style="margin-top:14px">
+    <div class="field">
+      <label>2-smena nomi</label>
+      <input name="shift2_name" value="{{ settings.shift2_name }}">
+    </div>
+    <div class="field">
+      <label>Boshlanishi</label>
+      <input type="time" name="shift2_start" value="{{ settings.shift2_start }}">
+    </div>
+    <div class="field">
+      <label>Tugashi</label>
+      <input type="time" name="shift2_end" value="{{ settings.shift2_end }}">
     </div>
   </div>
   <p class="muted small" style="margin-top:-6px">
-    Ish boshlanishidan keyin shu daqiqa ichida kelgan xodim kechikkan hisoblanmaydi.
+    Tugash vaqti boshlanishdan kichik bo'lsa (masalan 18:00 → 03:00), tizim
+    smenani <b>yarim tundan o'tadi</b> deb tushunadi: tunda soat 02:00 da
+    belgilangan ketish <b>kechagi</b> ish kuniga yoziladi, hisobot esa
+    chalkashmaydi.
+  </p>
+
+  <div class="field" style="max-width:280px">
+    <label>Kechikish chegarasi (daqiqa)</label>
+    <input name="late_grace_minutes" value="{{ settings.late_grace_minutes }}">
+  </div>
+  <p class="muted small" style="margin-top:-6px">
+    Smena boshlanishidan keyin shu daqiqa ichida kelgan xodim kechikkan hisoblanmaydi.
   </p>
 
   <div class="row">

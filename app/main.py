@@ -207,6 +207,94 @@ def geo_config(settings: dict):
     return lat, lng, radius
 
 
+# --------------------------------------------------------------------------
+# Smenalar
+# --------------------------------------------------------------------------
+
+def shifts_of(settings: dict) -> dict:
+    """Sozlamalardan ikkala smenani o'qiydi."""
+    out = {
+        1: {
+            "no": 1,
+            "name": settings.get("shift1_name") or "1-smena",
+            "start": parse_hhmm(settings.get("shift1_start", "09:00")),
+            "end": parse_hhmm(settings.get("shift1_end", "18:00"), (18, 0)),
+        }
+    }
+    if settings.get("shift2_enabled", "1") == "1":
+        out[2] = {
+            "no": 2,
+            "name": settings.get("shift2_name") or "2-smena",
+            "start": parse_hhmm(settings.get("shift2_start", "18:00"), (18, 0)),
+            "end": parse_hhmm(settings.get("shift2_end", "03:00"), (3, 0)),
+        }
+    return out
+
+
+def shift_no(value, settings: dict) -> int:
+    """Forma qiymatini mavjud smena raqamiga aylantiradi."""
+    try:
+        no = int(value)
+    except (TypeError, ValueError):
+        return 1
+    return no if no in shifts_of(settings) else 1
+
+
+def shift_of(employee, settings: dict) -> dict:
+    """Xodimning smenasi (noto'g'ri qiymatda 1-smenaga qaytadi)."""
+    shifts = shifts_of(settings)
+    try:
+        no = int(employee["shift"] or 1)
+    except (KeyError, TypeError, ValueError):
+        no = 1
+    return shifts.get(no, shifts[1])
+
+
+def crosses_midnight(shift: dict) -> bool:
+    return shift["end"] <= shift["start"]
+
+
+def _minutes(t: dtime) -> int:
+    return t.hour * 60 + t.minute
+
+
+def shift_day(moment: datetime, shift: dict) -> date:
+    """Shu payt qaysi ish kuniga tegishli.
+
+    Kunduzgi smenada bu oddiy kalendar sanasi. Yarim tundan o'tadigan
+    smenada esa tunning davomi oldingi kunga tegishli: 18:00–03:00
+    smenasida soat 02:00 da belgilangan ketish kechagi kunga yoziladi.
+    """
+    if not crosses_midnight(shift):
+        return moment.date()
+
+    now_t = moment.time()
+    if now_t >= shift["start"]:
+        return moment.date()
+    if now_t < shift["end"]:
+        return moment.date() - timedelta(days=1)
+
+    # Smena tugagan bilan keyingi smena boshlangunicha bo'lgan oraliq:
+    # vaqt qaysi chekkaga yaqin bo'lsa, o'sha kunga yozamiz.
+    now_m = _minutes(now_t)
+    since_end = now_m - _minutes(shift["end"])
+    until_start = _minutes(shift["start"]) - now_m
+    return moment.date() - timedelta(days=1) if since_end <= until_start else moment.date()
+
+
+def shift_start_at(day: date, shift: dict) -> datetime:
+    """Smenaning shu ish kunidagi boshlanish payti."""
+    return datetime.combine(day, shift["start"], tzinfo=TZ)
+
+
+def late_for(moment: datetime, day: date, shift: dict, grace: int) -> tuple[int, str]:
+    """Kechikish daqiqalari va holat."""
+    start = shift_start_at(day, shift)
+    if moment <= start + timedelta(minutes=grace):
+        return 0, "keldi"
+    return int((moment - start).total_seconds() // 60), "kechikdi"
+
+
 def error_page(title: str, body_html: str, status: int) -> HTMLResponse:
     """Oddiy, tushunarli xato sahifasi (shablonlarga bog'liq emas)."""
     return HTMLResponse(
@@ -340,14 +428,17 @@ def api_state(request: Request):
         ]
         token = slots[0]["token"]
         url = f"{root}/c/{token}"
-        today = D.today_str()
-
+        # Tungi smena yozuvlari kechagi sanaga tegishli bo'lishi mumkin,
+        # shuning uchun ikki kunni olamiz va so'nggi 16 soat bilan cheklaymiz.
+        now = D.now()
+        window_start = (now - timedelta(hours=16)).isoformat(timespec="seconds")
         rows = conn.execute(
             "SELECT a.*, e.full_name FROM attendance a "
             "JOIN employees e ON e.id = a.employee_id "
-            "WHERE a.work_date = ? AND a.check_in IS NOT NULL "
+            "WHERE a.work_date IN (?, ?) AND a.check_in >= ? "
             "ORDER BY a.check_in DESC",
-            (today,),
+            ((now.date() - timedelta(days=1)).isoformat(),
+             now.date().isoformat(), window_start),
         ).fetchall()
         total = conn.execute(
             "SELECT COUNT(*) c FROM employees WHERE active = 1"
@@ -394,25 +485,33 @@ def checkin_page(request: Request, token: str):
                 status_code=410,
             )
 
-        today = D.today_str()
+        now = D.now()
+        today = now.date()
+        yesterday = today - timedelta(days=1)
         employees = D.active_employees(conn)
+
+        # Tungi smena tufayli yozuv kechagi kunga tegishli bo'lishi mumkin,
+        # shuning uchun ikkala kunni ham olamiz va (xodim, kun) bo'yicha indekslaymiz.
         records = {
-            r["employee_id"]: r
+            (r["employee_id"], r["work_date"]): r
             for r in conn.execute(
-                "SELECT * FROM attendance WHERE work_date = ?", (today,)
+                "SELECT * FROM attendance WHERE work_date IN (?, ?)",
+                (yesterday.isoformat(), today.isoformat()),
             ).fetchall()
         }
         absences = {
             a["employee_id"]: a
             for a in conn.execute(
                 "SELECT * FROM absences WHERE date_from <= ? AND date_to >= ?",
-                (today, today),
+                (today.isoformat(), today.isoformat()),
             ).fetchall()
         }
 
     items = []
     for e in employees:
-        rec = records.get(e["id"])
+        shift = shift_of(e, settings)
+        day = shift_day(now, shift).isoformat()
+        rec = records.get((e["id"], day))
         if rec and rec["check_out"]:
             state, action = "ketgan", None
         elif rec and rec["check_in"]:
@@ -423,6 +522,7 @@ def checkin_page(request: Request, token: str):
             "id": e["id"],
             "name": e["full_name"],
             "position": e["position"],
+            "shift": shift["name"],
             "state": state,
             "action": action,
             "check_in": hhmm(rec["check_in"]) if rec else "",
@@ -499,7 +599,11 @@ def mark(request: Request, token: str,
                            f"Belgilash faqat ofis hududida ({int(radius)} m) mumkin.")
 
         now = D.now()
-        today = now.date().isoformat()
+        # Xodimning smenasi qaysi ish kuniga tegishli ekanini aniqlaydi.
+        # Tungi smenada soat 02:00 dagi harakat kechagi kunga yoziladi.
+        shift = shift_of(emp, settings)
+        work_day = shift_day(now, shift)
+        today = work_day.isoformat()
         rec = conn.execute(
             "SELECT * FROM attendance WHERE employee_id = ? AND work_date = ?",
             (employee_id, today),
@@ -520,14 +624,8 @@ def mark(request: Request, token: str,
                 return msg(False, "Siz allaqachon belgilangansiz",
                            f"Kelgan vaqtingiz: {hhmm(rec['check_in'])}")
 
-            start = parse_hhmm(settings.get("work_start", "09:00"))
             grace = int(settings.get("late_grace_minutes", "5"))
-            deadline = datetime.combine(now.date(), start, tzinfo=TZ) + timedelta(minutes=grace)
-            late = 0
-            status = "keldi"
-            if now > deadline:
-                late = int((now - datetime.combine(now.date(), start, tzinfo=TZ)).total_seconds() // 60)
-                status = "kechikdi"
+            late, status = late_for(now, work_day, shift, grace)
 
             conn.execute(
                 "INSERT INTO attendance (employee_id, work_date, check_in, late_minutes,"
@@ -551,7 +649,7 @@ def mark(request: Request, token: str,
         if action == "ketish":
             if not rec or not rec["check_in"]:
                 return msg(False, "Avval kelishni belgilang",
-                           "Bugun sizning kelganingiz qayd etilmagan.")
+                           "Ushbu smenada sizning kelganingiz qayd etilmagan.")
             if rec["check_out"]:
                 return msg(False, "Siz allaqachon ketgan deb belgilangansiz",
                            f"Ketgan vaqtingiz: {hhmm(rec['check_out'])}")
@@ -644,9 +742,11 @@ def admin_home(request: Request, kun: str = ""):
         }
 
     rows, stats = [], {"keldi": 0, "kechikdi": 0, "kelmadi": 0, "sababli": 0}
+    shift_stats = {}
     for e in employees:
         rec = records.get(e["id"])
         ab = absences.get(e["id"])
+        shift = shift_of(e, settings)
         if rec and rec["check_in"]:
             status = rec["status"]
         elif ab:
@@ -659,11 +759,22 @@ def admin_home(request: Request, kun: str = ""):
         else:
             stats["sababli"] += 1
 
+        box = shift_stats.setdefault(
+            shift["no"],
+            {"name": shift["name"], "vaqt": f"{shift['start']:%H:%M}–{shift['end']:%H:%M}",
+             "keldi": 0, "kechikdi": 0, "kelmadi": 0, "sababli": 0, "jami": 0},
+        )
+        box["jami"] += 1
+        box[status if status in ("keldi", "kechikdi", "kelmadi") else "sababli"] += 1
+
         rows.append({
             "id": e["id"],
             "name": e["full_name"],
             "position": e["position"],
             "department": e["department"],
+            "shift_no": shift["no"],
+            "shift": shift["name"],
+            "shift_time": f"{shift['start']:%H:%M}–{shift['end']:%H:%M}",
             "status": status,
             "check_in": hhmm(rec["check_in"]) if rec else "",
             "check_out": hhmm(rec["check_out"]) if rec else "",
@@ -680,6 +791,8 @@ def admin_home(request: Request, kun: str = ""):
          "day": day_s, "day_label": uz_date(day),
          "prev_day": (day - timedelta(days=1)).isoformat(),
          "next_day": (day + timedelta(days=1)).isoformat(),
+         "shift_stats": [shift_stats[k] for k in sorted(shift_stats)],
+         "two_shifts": len(shifts_of(settings)) > 1,
          "today": D.today_str(), "active": "today"},
     )
 
@@ -695,13 +808,29 @@ def manual_edit(request: Request, employee_id: int = Form(...), day: str = Form(
 
         d = D.parse_date(day)
 
-        def to_iso(value: str):
+        emp_row = conn.execute(
+            "SELECT * FROM employees WHERE id = ?", (employee_id,)
+        ).fetchone()
+        emp_shift = shift_of(emp_row, settings) if emp_row else shifts_of(settings)[1]
+
+        def to_iso(value: str, after: str | None = None):
+            """HH:MM ni to'liq sanaga aylantiradi.
+
+            Tungi smenada ketish vaqti ertasi kunga tushadi (18:00 -> 03:00),
+            shuning uchun kelishdan oldin chiqib qolsa, bir kun qo'shamiz.
+            """
             if not value:
                 return None
             t = parse_hhmm(value, (0, 0))
-            return datetime.combine(d, t, tzinfo=TZ).isoformat(timespec="seconds")
+            moment = datetime.combine(d, t, tzinfo=TZ)
+            if after:
+                prev = datetime.fromisoformat(after)
+                if moment < prev and crosses_midnight(emp_shift):
+                    moment += timedelta(days=1)
+            return moment.isoformat(timespec="seconds")
 
-        ci, co = to_iso(check_in), to_iso(check_out)
+        ci = to_iso(check_in)
+        co = to_iso(check_out, after=ci)
         if not ci:
             conn.execute(
                 "DELETE FROM attendance WHERE employee_id = ? AND work_date = ?",
@@ -709,15 +838,12 @@ def manual_edit(request: Request, employee_id: int = Form(...), day: str = Form(
             )
             D.log(conn, "admin_ochirdi", employee_id, detail=d.isoformat())
         else:
-            start = parse_hhmm(settings.get("work_start", "09:00"))
+            emp = conn.execute(
+                "SELECT * FROM employees WHERE id = ?", (employee_id,)
+            ).fetchone()
+            shift = shift_of(emp, settings) if emp else shifts_of(settings)[1]
             grace = int(settings.get("late_grace_minutes", "5"))
-            in_dt = datetime.fromisoformat(ci)
-            deadline = datetime.combine(d, start, tzinfo=TZ) + timedelta(minutes=grace)
-            late = 0
-            status = "keldi"
-            if in_dt > deadline:
-                late = int((in_dt - datetime.combine(d, start, tzinfo=TZ)).total_seconds() // 60)
-                status = "kechikdi"
+            late, status = late_for(datetime.fromisoformat(ci), d, shift, grace)
             conn.execute(
                 "INSERT INTO attendance (employee_id, work_date, check_in, check_out,"
                 " late_minutes, status, note, manual) VALUES (?, ?, ?, ?, ?, ?, ?, 1)"
@@ -745,14 +871,15 @@ def employees_page(request: Request):
         rows = D.all_employees(conn)
     return templates.TemplateResponse(
         request, "admin_employees.html",
-        {"request": request, "settings": settings, "rows": rows, "active": "employees"},
+        {"request": request, "settings": settings, "rows": rows,
+         "shifts": shifts_of(settings), "active": "employees"},
     )
 
 
 @app.post("/admin/xodimlar/qoshish")
 def employee_add(request: Request, full_name: str = Form(...),
                  position: str = Form(""), department: str = Form(""),
-                 phone: str = Form("")):
+                 phone: str = Form(""), shift: str = Form("1")):
     with D.db() as conn:
         settings = D.get_settings(conn)
         if (r := guard(request, settings)):
@@ -760,10 +887,10 @@ def employee_add(request: Request, full_name: str = Form(...),
         name = full_name.strip()
         if name:
             conn.execute(
-                "INSERT INTO employees (full_name, position, department, phone, created_at)"
-                " VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO employees (full_name, position, department, phone,"
+                " shift, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (name, position.strip(), department.strip(), phone.strip(),
-                 D.now().isoformat(timespec="seconds")),
+                 shift_no(shift, settings), D.now().isoformat(timespec="seconds")),
             )
     return RedirectResponse("/admin/xodimlar", status_code=303)
 
@@ -771,15 +898,16 @@ def employee_add(request: Request, full_name: str = Form(...),
 @app.post("/admin/xodimlar/{emp_id}/tahrir")
 def employee_edit(request: Request, emp_id: int, full_name: str = Form(...),
                   position: str = Form(""), department: str = Form(""),
-                  phone: str = Form("")):
+                  phone: str = Form(""), shift: str = Form("1")):
     with D.db() as conn:
         settings = D.get_settings(conn)
         if (r := guard(request, settings)):
             return r
         conn.execute(
-            "UPDATE employees SET full_name = ?, position = ?, department = ?, phone = ?"
-            " WHERE id = ?",
-            (full_name.strip(), position.strip(), department.strip(), phone.strip(), emp_id),
+            "UPDATE employees SET full_name = ?, position = ?, department = ?,"
+            " phone = ?, shift = ? WHERE id = ?",
+            (full_name.strip(), position.strip(), department.strip(),
+             phone.strip(), shift_no(shift, settings), emp_id),
         )
     return RedirectResponse("/admin/xodimlar", status_code=303)
 
@@ -868,8 +996,9 @@ def absence_delete(request: Request, ab_id: int):
 # Admin — hisobot
 # --------------------------------------------------------------------------
 
-def build_report(conn, start: date, end: date):
+def build_report(conn, start: date, end: date, settings: dict | None = None):
     """Davr uchun har bir xodim kesimida yig'ma hisobot."""
+    settings = settings or D.get_settings(conn)
     employees = D.active_employees(conn)
     days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
     workdays = [d for d in days if d.weekday() < 5]
@@ -925,9 +1054,12 @@ def build_report(conn, start: date, end: date):
                 "late": rec["late_minutes"] if rec else 0,
             })
 
+        shift = shift_of(e, settings)
         report.append({
             "id": e["id"], "name": e["full_name"], "position": e["position"],
             "department": e["department"], "cells": cells,
+            "shift": shift["name"],
+            "shift_time": f"{shift['start']:%H:%M}–{shift['end']:%H:%M}",
             "came": came, "late": late, "missed": missed, "excused": excused,
             "late_total": late_total, "worked_total": worked_total,
             "present_days": came + late,
@@ -951,7 +1083,7 @@ def report_page(request: Request, boshi: str = "", oxiri: str = ""):
         if (end - start).days > 92:
             end = start + timedelta(days=92)
 
-        report, days = build_report(conn, start, end)
+        report, days = build_report(conn, start, end, settings)
 
     return templates.TemplateResponse(
         request, "admin_report.html",
@@ -976,31 +1108,34 @@ def report_excel(request: Request, boshi: str = "", oxiri: str = ""):
         end = D.parse_date(oxiri, today) if oxiri else today
         if end < start:
             start, end = end, start
-        report, days = build_report(conn, start, end)
+        report, days = build_report(conn, start, end, settings)
 
     wb = Workbook()
 
     # 1-varaq: yig'ma
     ws = wb.active
     ws.title = "Yig'ma"
-    headers = ["F.I.Sh.", "Lavozim", "Bo'lim", "Keldi", "Kechikdi",
-               "Kelmadi", "Sababli", "Jami kechikish (daq)", "Ishlangan vaqt (soat)"]
+    headers = ["F.I.Sh.", "Smena", "Smena vaqti", "Lavozim", "Bo'lim",
+               "Keldi", "Kechikdi", "Kelmadi", "Sababli",
+               "Jami kechikish (daq)", "Ishlangan vaqt (soat)"]
     ws.append(headers)
     for c in ws[1]:
         c.font = Font(bold=True, color="FFFFFF")
         c.fill = PatternFill("solid", fgColor="1F2937")
         c.alignment = Alignment(horizontal="center", vertical="center")
     for r in report:
-        ws.append([r["name"], r["position"], r["department"], r["came"], r["late"],
-                   r["missed"], r["excused"], r["late_total"],
+        ws.append([r["name"], r["shift"], r["shift_time"], r["position"],
+                   r["department"], r["came"], r["late"], r["missed"],
+                   r["excused"], r["late_total"],
                    round(r["worked_total"] / 60, 1)])
-    for col, width in zip("ABCDEFGHI", [28, 20, 18, 9, 11, 11, 10, 20, 22]):
+    for col, width in zip("ABCDEFGHIJK",
+                          [28, 12, 14, 20, 18, 9, 11, 11, 10, 20, 22]):
         ws.column_dimensions[col].width = width
     ws.freeze_panes = "A2"
 
     # 2-varaq: kunlik jadval
     ws2 = wb.create_sheet("Kunlik")
-    head2 = ["F.I.Sh."] + [f"{d.day:02d}.{d.month:02d}" for d in days]
+    head2 = ["F.I.Sh.", "Smena"] + [f"{d.day:02d}.{d.month:02d}" for d in days]
     ws2.append(head2)
     for c in ws2[1]:
         c.font = Font(bold=True, color="FFFFFF")
@@ -1009,7 +1144,7 @@ def report_excel(request: Request, boshi: str = "", oxiri: str = ""):
     colors = {"keldi": "D1FAE5", "kechikdi": "FEF3C7", "kelmadi": "FEE2E2",
               "dam": "F3F4F6"}
     for r in report:
-        row = [r["name"]]
+        row = [r["name"], r["shift"]]
         for cell in r["cells"]:
             if cell["status"] in ("keldi", "kechikdi"):
                 txt = cell["check_in"] + (f"–{cell['check_out']}" if cell["check_out"] else "")
@@ -1019,14 +1154,15 @@ def report_excel(request: Request, boshi: str = "", oxiri: str = ""):
                 txt = STATUS_LABELS.get(cell["status"], cell["status"])
             row.append(txt)
         ws2.append(row)
-        for i, cell in enumerate(r["cells"], start=2):
+        for i, cell in enumerate(r["cells"], start=3):
             fill = colors.get(cell["status"], "E0E7FF")
             ws2.cell(row=ws2.max_row, column=i).fill = PatternFill("solid", fgColor=fill)
             ws2.cell(row=ws2.max_row, column=i).alignment = Alignment(horizontal="center")
     ws2.column_dimensions["A"].width = 28
-    for i in range(2, len(days) + 2):
+    ws2.column_dimensions["B"].width = 12
+    for i in range(3, len(days) + 3):
         ws2.column_dimensions[ws2.cell(row=1, column=i).column_letter].width = 13
-    ws2.freeze_panes = "B2"
+    ws2.freeze_panes = "C2"
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -1059,7 +1195,11 @@ def settings_page(request: Request, saqlandi: int = 0):
 
 @app.post("/admin/sozlamalar")
 def settings_save(request: Request, company_name: str = Form(""),
-                  work_start: str = Form("09:00"), work_end: str = Form("18:00"),
+                  shift1_name: str = Form("1-smena"),
+                  shift1_start: str = Form("09:00"), shift1_end: str = Form("18:00"),
+                  shift2_enabled: str = Form(""),
+                  shift2_name: str = Form("2-smena"),
+                  shift2_start: str = Form("18:00"), shift2_end: str = Form("03:00"),
                   late_grace_minutes: str = Form("5"),
                   min_shift_minutes: str = Form("60"),
                   device_limit_per_hour: str = Form("3"),
@@ -1077,8 +1217,13 @@ def settings_save(request: Request, company_name: str = Form(""),
             return value if value.isdigit() else fallback
 
         D.set_setting(conn, "company_name", company_name.strip() or "Kompaniya")
-        D.set_setting(conn, "work_start", work_start or "09:00")
-        D.set_setting(conn, "work_end", work_end or "18:00")
+        D.set_setting(conn, "shift1_name", shift1_name.strip() or "1-smena")
+        D.set_setting(conn, "shift1_start", shift1_start or "09:00")
+        D.set_setting(conn, "shift1_end", shift1_end or "18:00")
+        D.set_setting(conn, "shift2_enabled", "1" if shift2_enabled else "0")
+        D.set_setting(conn, "shift2_name", shift2_name.strip() or "2-smena")
+        D.set_setting(conn, "shift2_start", shift2_start or "18:00")
+        D.set_setting(conn, "shift2_end", shift2_end or "03:00")
         D.set_setting(conn, "late_grace_minutes", num(late_grace_minutes, "5"))
         D.set_setting(conn, "min_shift_minutes", num(min_shift_minutes, "60"))
         D.set_setting(conn, "device_limit_per_hour", num(device_limit_per_hour, "3"))
