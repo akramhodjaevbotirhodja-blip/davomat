@@ -21,6 +21,22 @@
   </div>
 
   <hr class="sep">
+  <h3 class="sub">📅 Ish kunlari</h3>
+  <p class="muted small">
+    Belgilanmagan kunlarda kelmaslik qoidabuzarlik deb hisoblanmaydi va
+    hisobotda dam olish kuni sifatida ko'rsatiladi.
+  </p>
+  <div class="days">
+    {% for i in range(1, 8) %}
+      <label class="day {{ 'on' if i in work_days }}">
+        <input type="checkbox" name="work_days" value="{{ i }}"
+               {% if i in work_days %}checked{% endif %}>
+        <span>{{ weekdays[i - 1] }}</span>
+      </label>
+    {% endfor %}
+  </div>
+
+  <hr class="sep">
   <h3 class="sub">🕐 Smenalar</h3>
   <p class="muted small">
     Har bir xodimga <b>Xodimlar</b> bo'limida smena tanlanadi. Kechikish

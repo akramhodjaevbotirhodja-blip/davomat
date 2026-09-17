@@ -57,7 +57,7 @@
         <tr>
           <th class="nm">F.I.Sh.</th>
           {% for d in days %}
-          <th {% if d.weekday() >= 5 %}class="muted"{% endif %}>{{ d.day }}</th>
+          <th {% if d.isoweekday() not in work_days %}class="muted"{% endif %}>{{ d.day }}</th>
           {% endfor %}
         </tr>
       </thead>

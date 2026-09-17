@@ -19,7 +19,7 @@ from itsdangerous import BadSignature, URLSafeSerializer
 
 from .config import (
     BASE_DIR, TZ, QR_ROTATE_SECONDS, QR_SLOTS_AHEAD, STATUS_LABELS,
-    ABSENCE_TYPES, WEEKDAYS_UZ, MONTHS_UZ,
+    ABSENCE_TYPES, WEEKDAYS_UZ, WEEKDAYS_SHORT_UZ, MONTHS_UZ,
 )
 from . import db as D
 from .security import make_token, verify_token, seconds_left, current_window
@@ -238,6 +238,22 @@ def shifts_of(settings: dict) -> dict:
         "flexible": True,
     }
     return out
+
+
+def work_days_of(settings: dict) -> set[int]:
+    """Ish kunlari to'plami: 1=Dushanba ... 7=Yakshanba."""
+    raw = settings.get("work_days", "1,2,3,4,5,6")
+    days = set()
+    for part in raw.split(","):
+        part = part.strip()
+        if part.isdigit() and 1 <= int(part) <= 7:
+            days.add(int(part))
+    return days or {1, 2, 3, 4, 5, 6}
+
+
+def is_rest_day(day: date, work_days: set[int]) -> bool:
+    """Shu kun dam olish kunimi? (isoweekday: 1=Dushanba ... 7=Yakshanba)"""
+    return day.isoweekday() not in work_days
 
 
 def shift_time_label(shift: dict) -> str:
@@ -786,6 +802,7 @@ def admin_home(request: Request, kun: str = ""):
             ).fetchall()
         }
 
+    rest_day = is_rest_day(day, work_days_of(settings))
     rows, stats = [], {"keldi": 0, "kechikdi": 0, "kelmadi": 0, "sababli": 0}
     shift_stats = {}
     for e in employees:
@@ -796,6 +813,9 @@ def admin_home(request: Request, kun: str = ""):
             status = rec["status"]
         elif ab:
             status = ab["kind"]
+        elif rest_day:
+            # Dam olish kunida kelmaslik qoidabuzarlik emas
+            status = "dam"
         elif is_flexible(shift):
             # Erkin jadvalda kelmagan kun qoidabuzarlik emas
             status = "belgilanmagan"
@@ -804,7 +824,7 @@ def admin_home(request: Request, kun: str = ""):
 
         if status in ("keldi", "kechikdi", "kelmadi"):
             stats[status] += 1
-        elif status != "belgilanmagan":
+        elif status not in ("belgilanmagan", "dam"):
             stats["sababli"] += 1
 
         box = shift_stats.setdefault(
@@ -816,7 +836,7 @@ def admin_home(request: Request, kun: str = ""):
         box["jami"] += 1
         if status in ("keldi", "kechikdi", "kelmadi"):
             box[status] += 1
-        elif status != "belgilanmagan":
+        elif status not in ("belgilanmagan", "dam"):
             box["sababli"] += 1
 
         rows.append({
@@ -845,6 +865,7 @@ def admin_home(request: Request, kun: str = ""):
          "next_day": (day + timedelta(days=1)).isoformat(),
          # Erkin jadval oxirida tursin (raqami 0 bo'lsa ham)
          "shift_stats": [shift_stats[k] for k in sorted(shift_stats, key=lambda n: (n == 0, n))],
+         "rest_day": rest_day,
          "two_shifts": len(shifts_of(settings)) > 1,
          "today": D.today_str(), "active": "today"},
     )
@@ -1052,9 +1073,10 @@ def absence_delete(request: Request, ab_id: int):
 def build_report(conn, start: date, end: date, settings: dict | None = None):
     """Davr uchun har bir xodim kesimida yig'ma hisobot."""
     settings = settings or D.get_settings(conn)
+    work_days = work_days_of(settings)
     employees = D.active_employees(conn)
     days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
-    workdays = [d for d in days if d.weekday() < 5]
+    workdays = [d for d in days if not is_rest_day(d, work_days)]
 
     att = {}
     for r in conn.execute(
@@ -1084,7 +1106,7 @@ def build_report(conn, start: date, end: date, settings: dict | None = None):
             ds = d.isoformat()
             rec = att.get((e["id"], ds))
             kind = absent_kind(e["id"], ds)
-            weekend = d.weekday() >= 5
+            weekend = is_rest_day(d, work_days)
             if rec and rec["check_in"]:
                 status = rec["status"]
                 if status == "kechikdi":
@@ -1146,6 +1168,7 @@ def report_page(request: Request, boshi: str = "", oxiri: str = ""):
         {"request": request, "settings": settings, "report": report, "days": days,
          "start": start.isoformat(), "end": end.isoformat(),
          "period_label": f"{uz_date(start)} — {uz_date(end)}",
+         "work_days": work_days_of(settings),
          "active": "report"},
     )
 
@@ -1245,6 +1268,7 @@ def settings_page(request: Request, saqlandi: int = 0):
         request, "admin_settings.html",
         {"request": request, "settings": settings, "saqlandi": saqlandi,
          "lan_ip": "" if IS_CLOUD else lan_ip(), "is_cloud": IS_CLOUD,
+         "work_days": work_days_of(settings), "weekdays": WEEKDAYS_SHORT_UZ,
          "auto_url": auto_base_url(request), "active": "settings"},
     )
 
@@ -1257,6 +1281,7 @@ def settings_save(request: Request, company_name: str = Form(""),
                   shift2_name: str = Form("2-smena"),
                   shift2_start: str = Form("18:00"), shift2_end: str = Form("03:00"),
                   flex_name: str = Form("Erkin jadval"),
+                  work_days: list[str] = Form(default=[]),
                   late_grace_minutes: str = Form("5"),
                   min_shift_minutes: str = Form("60"),
                   device_limit_per_hour: str = Form("3"),
@@ -1282,6 +1307,9 @@ def settings_save(request: Request, company_name: str = Form(""),
         D.set_setting(conn, "shift2_start", shift2_start or "18:00")
         D.set_setting(conn, "shift2_end", shift2_end or "03:00")
         D.set_setting(conn, "flex_name", flex_name.strip() or "Erkin jadval")
+        chosen = sorted({int(d) for d in work_days if d.isdigit() and 1 <= int(d) <= 7})
+        D.set_setting(conn, "work_days",
+                      ",".join(str(d) for d in chosen) or "1,2,3,4,5,6")
         D.set_setting(conn, "late_grace_minutes", num(late_grace_minutes, "5"))
         D.set_setting(conn, "min_shift_minutes", num(min_shift_minutes, "60"))
         D.set_setting(conn, "device_limit_per_hour", num(device_limit_per_hour, "3"))

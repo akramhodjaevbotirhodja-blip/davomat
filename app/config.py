@@ -36,6 +36,8 @@ DEFAULT_SETTINGS = {
     "shift2_enabled": "1",
     # Erkin jadval — belgilangan kelish vaqti yo'q (masalan talabalar)
     "flex_name": "Erkin jadval",
+    # Ish kunlari: 1=Dushanba ... 7=Yakshanba. Standart — Du-Sha.
+    "work_days": "1,2,3,4,5,6",
     "late_grace_minutes": "5",
     "min_shift_minutes": "60",       # kelgandan keyin kamida shuncha vaqt o'tsa ketish yoziladi
     "device_limit_per_hour": "3",    # bitta telefondan 1 soatda nechta odam belgilanishi mumkin
@@ -50,6 +52,7 @@ DEFAULT_SETTINGS = {
 STATUS_LABELS = {
     "keldi": "Keldi",
     "belgilanmagan": "—",
+    "dam": "Dam olish",
     "kechikdi": "Kechikdi",
     "kelmadi": "Kelmadi",
     "tatil": "Ta'til",
@@ -64,6 +67,9 @@ WEEKDAYS_UZ = [
     "Dushanba", "Seshanba", "Chorshanba", "Payshanba",
     "Juma", "Shanba", "Yakshanba",
 ]
+
+# Sozlamalar sahifasidagi qisqa nomlar (1=Dushanba ... 7=Yakshanba)
+WEEKDAYS_SHORT_UZ = ["Du", "Se", "Cho", "Pa", "Ju", "Sha", "Ya"]
 
 MONTHS_UZ = [
     "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",

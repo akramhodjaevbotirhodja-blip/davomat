@@ -15,6 +15,12 @@
   </div>
 </div>
 
+{% if rest_day %}
+<p class="warn-box" style="background:rgba(139,149,170,.1);border-color:var(--line);color:var(--muted)">
+  📅 Bu kun <b>dam olish kuni</b> — kelmagan xodimlar qoidabuzar deb belgilanmaydi.
+</p>
+{% endif %}
+
 <div class="stats">
   <div class="stat"><div class="stat-num" style="color:var(--ok)">{{ stats.keldi }}</div><div class="stat-lbl">O'z vaqtida keldi</div></div>
   <div class="stat"><div class="stat-num" style="color:var(--warn)">{{ stats.kechikdi }}</div><div class="stat-lbl">Kechikdi</div></div>
