@@ -30,22 +30,33 @@ IS_CLOUD = bool(os.environ.get("VERCEL") or D.IS_PG)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Server ko'tarilganda bazani tayyorlaydi va manzillarni chiqaradi."""
-    D.ensure_db()
+    """Ishga tushish.
+
+    Bu yerda hech qachon xato ko'tarilmasligi kerak: serverless muhitda
+    lifespan qulasa, butun funksiya ishlamay qoladi va foydalanuvchi
+    sababini bilmaydigan 500 xatosini ko'radi. Baza esa birinchi so'rovda
+    o'zi tayyorlanadi (`D.db()` buni o'zi qiladi).
+    """
     if IS_CLOUD:
-        # Bulutda manzilni so'rov sarlavhalaridan olamiz, lokal IP ma'nosiz
+        # Bulutda manzil so'rov sarlavhalaridan olinadi, lokal IP ma'nosiz.
+        # Bazaga ulanish ham shu yerda emas, birinchi so'rovda amalga oshadi.
         yield
         return
-    ip = lan_ip()
-    with D.db() as conn:
-        if not D.get_settings(conn).get("base_url"):
-            D.set_setting(conn, "base_url", f"http://{ip}:8000")
-    print("\n" + "=" * 60, flush=True)
-    print("  DAVOMAT TIZIMI ishga tushdi", flush=True)
-    print(f"  Proyektor ekrani : http://{ip}:8000/projector", flush=True)
-    print(f"  Admin panel      : http://{ip}:8000/admin", flush=True)
-    print(f"  Xodimlar QR orqali shu manzilga tushadi: http://{ip}:8000", flush=True)
-    print("=" * 60 + "\n", flush=True)
+
+    try:
+        D.ensure_db()
+        ip = lan_ip()
+        with D.db() as conn:
+            if not D.get_settings(conn).get("base_url"):
+                D.set_setting(conn, "base_url", f"http://{ip}:8000")
+        print("\n" + "=" * 60, flush=True)
+        print("  DAVOMAT TIZIMI ishga tushdi", flush=True)
+        print(f"  Proyektor ekrani : http://{ip}:8000/projector", flush=True)
+        print(f"  Admin panel      : http://{ip}:8000/admin", flush=True)
+        print(f"  Xodimlar QR orqali shu manzilga tushadi: http://{ip}:8000", flush=True)
+        print("=" * 60 + "\n", flush=True)
+    except Exception as exc:  # noqa: BLE001 — server baribir ko'tarilsin
+        print(f"\n  OGOHLANTIRISH: baza tayyorlanmadi — {exc}\n", flush=True)
     yield
 
 
@@ -196,6 +207,44 @@ def geo_config(settings: dict):
     return lat, lng, radius
 
 
+def error_page(title: str, body_html: str, status: int) -> HTMLResponse:
+    """Oddiy, tushunarli xato sahifasi (shablonlarga bog'liq emas)."""
+    return HTMLResponse(
+        f"<!doctype html><html lang=uz><meta charset=utf-8><title>{title}</title>"
+        "<body style=\"font-family:system-ui,-apple-system,Segoe UI,sans-serif;"
+        "background:#0b0d12;color:#e8ecf4;display:grid;place-items:center;"
+        "min-height:100vh;margin:0;padding:24px\">"
+        "<div style='max-width:540px;text-align:center'>"
+        f"<h1 style='font-size:24px;margin:0 0 14px'>{title}</h1>{body_html}"
+        "</div></body></html>",
+        status_code=status,
+    )
+
+
+CODE = ("background:#1e2432;padding:2px 7px;border-radius:5px;"
+        "font-family:ui-monospace,monospace")
+DIM = "color:#8b95aa;line-height:1.7;margin:0 0 12px"
+
+
+@app.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception):
+    """Kutilmagan xatoni loglaymiz va sababini sahifada ko'rsatamiz."""
+    import traceback
+    traceback.print_exc()
+    hint = ""
+    if not D.IS_PG:
+        hint = (f"<p style='{DIM}'>Ehtimoliy sabab: "
+                f"<code style='{CODE}'>DATABASE_URL</code> o'zgaruvchisi "
+                "qo'shilmagan.</p>")
+    return error_page(
+        "Xatolik yuz berdi",
+        f"<p style='{DIM}'>{type(exc).__name__}: {str(exc)[:200]}</p>{hint}"
+        f"<p style='{DIM}'>Batafsil ma'lumot Vercel'dagi "
+        "<b>Logs</b> bo'limida.</p>",
+        500,
+    )
+
+
 @app.middleware("http")
 async def require_database(request: Request, call_next):
     """Bulutda baza ulanmagan bo'lsa — tushunarli xabar, stack trace emas.
@@ -204,22 +253,15 @@ async def require_database(request: Request, call_next):
     u yerda ishlay olmaydi: `DATABASE_URL` majburiy.
     """
     if os.environ.get("VERCEL") and not D.IS_PG:
-        return HTMLResponse(
-            "<!doctype html><html lang=uz><meta charset=utf-8>"
-            "<title>Baza ulanmagan</title>"
-            "<body style='font-family:system-ui;background:#0b0d12;color:#e8ecf4;"
-            "display:grid;place-items:center;min-height:100vh;margin:0;padding:24px'>"
-            "<div style='max-width:520px;text-align:center'>"
-            "<h1 style='font-size:24px'>Ma'lumotlar bazasi ulanmagan</h1>"
-            "<p style='color:#8b95aa;line-height:1.7'>Vercel loyihasining "
-            "<b>Settings &rarr; Environment Variables</b> bo'limiga "
-            "<code style='background:#1e2432;padding:2px 7px;border-radius:5px'>DATABASE_URL</code> "
-            "o'zgaruvchisini qo'shing (Neon'ning <b>pooled</b> manzili), "
-            "so'ng <b>Deployments</b> bo'limidan <b>Redeploy</b> qiling.</p>"
-            "<p style='color:#8b95aa'>Batafsil: repozitoriydagi "
-            "<code style='background:#1e2432;padding:2px 7px;border-radius:5px'>VERCEL.md</code></p>"
-            "</div></body></html>",
-            status_code=503,
+        return error_page(
+            "Ma'lumotlar bazasi ulanmagan",
+            f"<p style='{DIM}'>Vercel loyihasining <b>Settings &rarr; "
+            f"Environment Variables</b> bo'limiga <code style='{CODE}'>DATABASE_URL</code> "
+            "o'zgaruvchisini qo'shing (Neon'ning <b>pooled</b> manzili), so'ng "
+            "<b>Deployments</b> bo'limidan <b>Redeploy</b> qiling.</p>"
+            f"<p style='{DIM}'>Batafsil: repozitoriydagi "
+            f"<code style='{CODE}'>VERCEL.md</code></p>",
+            503,
         )
     return await call_next(request)
 
