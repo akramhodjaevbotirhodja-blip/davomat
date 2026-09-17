@@ -196,6 +196,34 @@ def geo_config(settings: dict):
     return lat, lng, radius
 
 
+@app.middleware("http")
+async def require_database(request: Request, call_next):
+    """Bulutda baza ulanmagan bo'lsa — tushunarli xabar, stack trace emas.
+
+    Vercel'da disk faqat o'qish uchun, shuning uchun SQLite zaxira varianti
+    u yerda ishlay olmaydi: `DATABASE_URL` majburiy.
+    """
+    if os.environ.get("VERCEL") and not D.IS_PG:
+        return HTMLResponse(
+            "<!doctype html><html lang=uz><meta charset=utf-8>"
+            "<title>Baza ulanmagan</title>"
+            "<body style='font-family:system-ui;background:#0b0d12;color:#e8ecf4;"
+            "display:grid;place-items:center;min-height:100vh;margin:0;padding:24px'>"
+            "<div style='max-width:520px;text-align:center'>"
+            "<h1 style='font-size:24px'>Ma'lumotlar bazasi ulanmagan</h1>"
+            "<p style='color:#8b95aa;line-height:1.7'>Vercel loyihasining "
+            "<b>Settings &rarr; Environment Variables</b> bo'limiga "
+            "<code style='background:#1e2432;padding:2px 7px;border-radius:5px'>DATABASE_URL</code> "
+            "o'zgaruvchisini qo'shing (Neon'ning <b>pooled</b> manzili), "
+            "so'ng <b>Deployments</b> bo'limidan <b>Redeploy</b> qiling.</p>"
+            "<p style='color:#8b95aa'>Batafsil: repozitoriydagi "
+            "<code style='background:#1e2432;padding:2px 7px;border-radius:5px'>VERCEL.md</code></p>"
+            "</div></body></html>",
+            status_code=503,
+        )
+    return await call_next(request)
+
+
 # --------------------------------------------------------------------------
 # Proyektor ekrani
 # --------------------------------------------------------------------------
