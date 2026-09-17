@@ -46,7 +46,21 @@ git add -A; git commit -m "o'zgarish izohi"; git push
 
 ---
 
-## 3-qadam. Vercel'ga ulash (5 daqiqa)
+## 3-qadam. Vercel'ga ulash — ✅ bajarildi
+
+Ishlayotgan manzil: **https://checkin-swart-delta.vercel.app**
+
+| Sahifa | Manzil |
+|---|---|
+| Proyektor ekrani | `/projector` |
+| Admin panel | `/admin` |
+
+Quyidagi ko'rsatma yangi loyiha ochmoqchi bo'lganingizda kerak bo'ladi.
+
+<details>
+<summary>Vercel'ga ulash bosqichlari</summary>
+
+### Vercel'ga ulash (5 daqiqa)
 
 1. [vercel.com](https://vercel.com) → **Sign up with GitHub**
 2. **Add New → Project** → ro'yxatdan `davomat` repozitoriysini tanlang → **Import**
@@ -66,6 +80,8 @@ git add -A; git commit -m "o'zgarish izohi"; git push
    ko'rinishidagi manzil beriladi.
 
 Jadvallar birinchi so'rovda avtomatik yaratiladi — qo'lda SQL yozish kerak emas.
+
+</details>
 
 ---
 
