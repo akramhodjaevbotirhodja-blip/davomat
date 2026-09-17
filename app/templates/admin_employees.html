@@ -13,7 +13,7 @@
       <label>Smena</label>
       <select name="shift">
         {% for no, sh in shifts.items() %}
-          <option value="{{ no }}">{{ sh.name }} ({{ "%02d:%02d"|format(sh.start.hour, sh.start.minute) }}–{{ "%02d:%02d"|format(sh.end.hour, sh.end.minute) }})</option>
+          <option value="{{ no }}">{{ sh.name }}{% if not sh.flexible %} ({{ "%02d:%02d"|format(sh.start.hour, sh.start.minute) }}–{{ "%02d:%02d"|format(sh.end.hour, sh.end.minute) }}){% endif %}</option>
         {% endfor %}
       </select>
     </div>
@@ -42,7 +42,7 @@
               <div class="f"><label>Smena</label>
                 <select name="shift">
                   {% for no, sh in shifts.items() %}
-                    <option value="{{ no }}" {% if (e.shift or 1) == no %}selected{% endif %}>{{ sh.name }}</option>
+                    <option value="{{ no }}" {% if (1 if e.shift is none else e.shift) == no %}selected{% endif %}>{{ sh.name }}</option>
                   {% endfor %}
                 </select>
               </div>
@@ -50,7 +50,7 @@
             </form>
           </details>
         </td>
-        <td><span class="badge b-smena{{ e.shift or 1 }}">{{ shifts.get(e.shift or 1, shifts[1]).name }}</span></td>
+        <td><span class="badge b-smena{{ 1 if e.shift is none else e.shift }}">{{ shifts.get(1 if e.shift is none else e.shift, shifts[1]).name }}</span></td>
         <td class="muted">{{ e.position }}</td>
         <td class="muted">{{ e.department }}</td>
         <td class="muted">{{ e.phone }}</td>
@@ -76,5 +76,10 @@
     </tbody>
   </table>
 </div>
+<p class="muted small">
+  <b>Erkin jadval</b> — belgilangan kelish vaqti yo'q (masalan talabalar).
+  Bunday xodimga kechikish hech qachon yozilmaydi, faqat ishlangan vaqt
+  hisoblanadi; kelmagan kun ham qoidabuzarlik deb belgilanmaydi.
+</p>
 <p class="muted small">Ishdan bo'shagan xodimni <b>o'chirish</b> o'rniga <b>nofaol</b> qilib qo'ying — shunda eski hisobotlar saqlanib qoladi.</p>
 {% endblock %}

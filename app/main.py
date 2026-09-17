@@ -228,7 +228,23 @@ def shifts_of(settings: dict) -> dict:
             "start": parse_hhmm(settings.get("shift2_start", "18:00"), (18, 0)),
             "end": parse_hhmm(settings.get("shift2_end", "03:00"), (3, 0)),
         }
+    # Erkin jadval: belgilangan kelish vaqti yo'q, kechikish hisoblanmaydi.
+    # Talabalar shu turga qo'yiladi.
+    out[0] = {
+        "no": 0,
+        "name": settings.get("flex_name") or "Erkin jadval",
+        "start": None,
+        "end": None,
+        "flexible": True,
+    }
     return out
+
+
+def shift_time_label(shift: dict) -> str:
+    """Smena vaqti matn ko'rinishida; erkin jadvalda vaqt yo'q."""
+    if is_flexible(shift):
+        return "—"
+    return f"{shift['start']:%H:%M}–{shift['end']:%H:%M}"
 
 
 def shift_no(value, settings: dict) -> int:
@@ -244,13 +260,22 @@ def shift_of(employee, settings: dict) -> dict:
     """Xodimning smenasi (noto'g'ri qiymatda 1-smenaga qaytadi)."""
     shifts = shifts_of(settings)
     try:
-        no = int(employee["shift"] or 1)
+        raw = employee["shift"]
+        # Diqqat: erkin jadval raqami 0 — `or 1` ishlatib bo'lmaydi,
+        # chunki Pythonda 0 "bo'sh" deb hisoblanadi
+        no = 1 if raw is None else int(raw)
     except (KeyError, TypeError, ValueError):
         no = 1
     return shifts.get(no, shifts[1])
 
 
+def is_flexible(shift: dict) -> bool:
+    return bool(shift.get("flexible"))
+
+
 def crosses_midnight(shift: dict) -> bool:
+    if is_flexible(shift):
+        return False
     return shift["end"] <= shift["start"]
 
 
@@ -283,12 +308,20 @@ def shift_day(moment: datetime, shift: dict) -> date:
 
 
 def shift_start_at(day: date, shift: dict) -> datetime:
-    """Smenaning shu ish kunidagi boshlanish payti."""
+    """Smenaning shu ish kunidagi boshlanish payti (erkin jadvalda yo'q)."""
+    if is_flexible(shift):
+        raise ValueError("erkin jadvalda boshlanish vaqti yo'q")
     return datetime.combine(day, shift["start"], tzinfo=TZ)
 
 
 def late_for(moment: datetime, day: date, shift: dict, grace: int) -> tuple[int, str]:
-    """Kechikish daqiqalari va holat."""
+    """Kechikish daqiqalari va holat.
+
+    Erkin jadvalda kelish vaqti belgilanmagan, shuning uchun kechikish
+    hech qachon hisoblanmaydi — faqat ishlangan vaqt yoziladi.
+    """
+    if is_flexible(shift):
+        return 0, "keldi"
     start = shift_start_at(day, shift)
     if moment <= start + timedelta(minutes=grace):
         return 0, "keldi"
@@ -647,6 +680,18 @@ def mark(request: Request, token: str,
                        f"Kelgan vaqt: {now.strftime('%H:%M')}. Yaxshi ish kuni tilaymiz!")
 
         if action == "ketish":
+            if (not rec or not rec["check_in"]) and is_flexible(shift):
+                # Erkin jadvalda kelish vaqti belgilanmagani uchun ish kuni
+                # oddiy kalendar sanasi. Yarim tundan keyin ketish belgilansa,
+                # kechagi tugallanmagan yozuvni topib beramiz.
+                rec = conn.execute(
+                    "SELECT * FROM attendance WHERE employee_id = ? AND work_date = ?"
+                    " AND check_in IS NOT NULL AND check_out IS NULL",
+                    (employee_id, (work_day - timedelta(days=1)).isoformat()),
+                ).fetchone()
+                if rec:
+                    today = rec["work_date"]
+
             if not rec or not rec["check_in"]:
                 return msg(False, "Avval kelishni belgilang",
                            "Ushbu smenada sizning kelganingiz qayd etilmagan.")
@@ -751,21 +796,28 @@ def admin_home(request: Request, kun: str = ""):
             status = rec["status"]
         elif ab:
             status = ab["kind"]
+        elif is_flexible(shift):
+            # Erkin jadvalda kelmagan kun qoidabuzarlik emas
+            status = "belgilanmagan"
         else:
             status = "kelmadi"
 
         if status in ("keldi", "kechikdi", "kelmadi"):
             stats[status] += 1
-        else:
+        elif status != "belgilanmagan":
             stats["sababli"] += 1
 
         box = shift_stats.setdefault(
             shift["no"],
-            {"name": shift["name"], "vaqt": f"{shift['start']:%H:%M}–{shift['end']:%H:%M}",
+            {"name": shift["name"], "vaqt": shift_time_label(shift),
+             "flexible": is_flexible(shift),
              "keldi": 0, "kechikdi": 0, "kelmadi": 0, "sababli": 0, "jami": 0},
         )
         box["jami"] += 1
-        box[status if status in ("keldi", "kechikdi", "kelmadi") else "sababli"] += 1
+        if status in ("keldi", "kechikdi", "kelmadi"):
+            box[status] += 1
+        elif status != "belgilanmagan":
+            box["sababli"] += 1
 
         rows.append({
             "id": e["id"],
@@ -774,7 +826,7 @@ def admin_home(request: Request, kun: str = ""):
             "department": e["department"],
             "shift_no": shift["no"],
             "shift": shift["name"],
-            "shift_time": f"{shift['start']:%H:%M}–{shift['end']:%H:%M}",
+            "shift_time": shift_time_label(shift),
             "status": status,
             "check_in": hhmm(rec["check_in"]) if rec else "",
             "check_out": hhmm(rec["check_out"]) if rec else "",
@@ -791,7 +843,8 @@ def admin_home(request: Request, kun: str = ""):
          "day": day_s, "day_label": uz_date(day),
          "prev_day": (day - timedelta(days=1)).isoformat(),
          "next_day": (day + timedelta(days=1)).isoformat(),
-         "shift_stats": [shift_stats[k] for k in sorted(shift_stats)],
+         # Erkin jadval oxirida tursin (raqami 0 bo'lsa ham)
+         "shift_stats": [shift_stats[k] for k in sorted(shift_stats, key=lambda n: (n == 0, n))],
          "two_shifts": len(shifts_of(settings)) > 1,
          "today": D.today_str(), "active": "today"},
     )
@@ -1023,6 +1076,7 @@ def build_report(conn, start: date, end: date, settings: dict | None = None):
 
     report = []
     for e in employees:
+        shift = shift_of(e, settings)
         came = late = missed = excused = 0
         late_total = worked_total = 0
         cells = []
@@ -1044,6 +1098,9 @@ def build_report(conn, start: date, end: date, settings: dict | None = None):
                 excused += 1
             elif weekend:
                 status = "dam"
+            elif is_flexible(shift):
+                # Erkin jadval: kelmagan kun "kelmadi" deb hisoblanmaydi
+                status = "belgilanmagan"
             else:
                 status = "kelmadi"
                 missed += 1
@@ -1054,12 +1111,11 @@ def build_report(conn, start: date, end: date, settings: dict | None = None):
                 "late": rec["late_minutes"] if rec else 0,
             })
 
-        shift = shift_of(e, settings)
         report.append({
             "id": e["id"], "name": e["full_name"], "position": e["position"],
             "department": e["department"], "cells": cells,
             "shift": shift["name"],
-            "shift_time": f"{shift['start']:%H:%M}–{shift['end']:%H:%M}",
+            "shift_time": shift_time_label(shift),
             "came": came, "late": late, "missed": missed, "excused": excused,
             "late_total": late_total, "worked_total": worked_total,
             "present_days": came + late,
@@ -1200,6 +1256,7 @@ def settings_save(request: Request, company_name: str = Form(""),
                   shift2_enabled: str = Form(""),
                   shift2_name: str = Form("2-smena"),
                   shift2_start: str = Form("18:00"), shift2_end: str = Form("03:00"),
+                  flex_name: str = Form("Erkin jadval"),
                   late_grace_minutes: str = Form("5"),
                   min_shift_minutes: str = Form("60"),
                   device_limit_per_hour: str = Form("3"),
@@ -1224,6 +1281,7 @@ def settings_save(request: Request, company_name: str = Form(""),
         D.set_setting(conn, "shift2_name", shift2_name.strip() or "2-smena")
         D.set_setting(conn, "shift2_start", shift2_start or "18:00")
         D.set_setting(conn, "shift2_end", shift2_end or "03:00")
+        D.set_setting(conn, "flex_name", flex_name.strip() or "Erkin jadval")
         D.set_setting(conn, "late_grace_minutes", num(late_grace_minutes, "5"))
         D.set_setting(conn, "min_shift_minutes", num(min_shift_minutes, "60"))
         D.set_setting(conn, "device_limit_per_hour", num(device_limit_per_hour, "3"))

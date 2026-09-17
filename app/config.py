@@ -34,6 +34,8 @@ DEFAULT_SETTINGS = {
     "shift2_start": "18:00",
     "shift2_end": "03:00",
     "shift2_enabled": "1",
+    # Erkin jadval — belgilangan kelish vaqti yo'q (masalan talabalar)
+    "flex_name": "Erkin jadval",
     "late_grace_minutes": "5",
     "min_shift_minutes": "60",       # kelgandan keyin kamida shuncha vaqt o'tsa ketish yoziladi
     "device_limit_per_hour": "3",    # bitta telefondan 1 soatda nechta odam belgilanishi mumkin
@@ -47,6 +49,7 @@ DEFAULT_SETTINGS = {
 
 STATUS_LABELS = {
     "keldi": "Keldi",
+    "belgilanmagan": "—",
     "kechikdi": "Kechikdi",
     "kelmadi": "Kelmadi",
     "tatil": "Ta'til",

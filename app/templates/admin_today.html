@@ -30,7 +30,7 @@
     <div class="shift-card-body">
       <span style="color:var(--ok)">{{ sh.keldi }} keldi</span>
       <span style="color:var(--warn)">{{ sh.kechikdi }} kechikdi</span>
-      <span style="color:var(--bad)">{{ sh.kelmadi }} kelmadi</span>
+      {% if not sh.flexible %}<span style="color:var(--bad)">{{ sh.kelmadi }} kelmadi</span>{% endif %}
       {% if sh.sababli %}<span style="color:#a5b4fc">{{ sh.sababli }} sababli</span>{% endif %}
       <span class="muted">jami {{ sh.jami }}</span>
     </div>

@@ -450,3 +450,8 @@ details.edit[open] summary { color: var(--muted); }
 .shift-card-head { font-weight: 800; margin-bottom: 8px; }
 .shift-card-head .muted { font-weight: 600; font-size: 13px; margin-left: 6px; }
 .shift-card-body { display: flex; flex-wrap: wrap; gap: 12px; font-size: 14px; font-weight: 600; }
+
+/* Erkin jadval (belgilangan vaqti yo'q xodimlar) */
+.b-smena0       { background: rgba(139,149,170,.16); color: #b6c0d4; }
+.b-belgilanmagan{ background: rgba(139,149,170,.12); color: var(--muted); }
+.c-belgilanmagan{ background: rgba(255,255,255,.035); color: #5a6478; }
