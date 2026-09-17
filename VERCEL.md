@@ -61,8 +61,7 @@ git add -A; git commit -m "o'zgarish izohi"; git push
    > boshlang'ich parol sifatida yoziladi. Keyin parol admin panelidan
    > o'zgartiriladi va bu o'zgaruvchi e'tiborga olinmaydi.
 
-4. **Framework Preset**: `Other` (o'zgartirish shart emas, `vercel.json` hammasini
-   o'zi aytadi)
+4. **Framework Preset**: Vercel `FastAPI` ni o'zi aniqlaydi — o'zgartirmang
 5. **Deploy** tugmasini bosing. 1–2 daqiqada `https://davomat-xxxx.vercel.app`
    ko'rinishidagi manzil beriladi.
 
@@ -116,6 +115,13 @@ SQL Editor'idan jadvallarni CSV ga eksport qilish mumkin.
 **Vaqt zonasi** kodda Toshkent (`Asia/Tashkent`) qilib qo'yilgan —
 `app/config.py` faylida. Vercel serveri qayerda turishidan qat'i nazar vaqt
 to'g'ri hisoblanadi.
+
+**Konfiguratsiya fayli yo'q va kerak emas.** Vercel FastAPI ilovasini o'zi
+topadi: `app/main.py` ichidagi `app` o'zgaruvchisi uning standart qidiruv
+ro'yxatida. `public/` papkasidagi fayllar CDN orqali tarqatiladi
+(`public/static/style.css` → `/static/style.css`), Python versiyasi esa
+`.python-version` faylida ko'rsatilgan. `vercel.json` qo'shish shart emas —
+aksincha, unda yozilgan ortiqcha sozlama build'ni buzishi mumkin.
 
 ---
 

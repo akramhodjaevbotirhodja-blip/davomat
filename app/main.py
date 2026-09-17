@@ -50,9 +50,12 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Davomat", lifespan=lifespan)
-# Vercel `public/` ichidagi fayllarni o'zi tarqatadi (funksiyaga tegmaydi);
-# lokal ishlaganda esa shu mount xizmat qiladi.
-app.mount("/static", StaticFiles(directory=BASE_DIR / "public" / "static"), name="static")
+# Lokal ishlaganda statik fayllarni shu mount tarqatadi. Vercel'da esa
+# `public/` papkasini CDN o'zi xizmat qiladi va uni funksiya paketiga
+# qo'shmasligi mumkin — shuning uchun mavjudligini tekshiramiz.
+_static_dir = BASE_DIR / "public" / "static"
+if _static_dir.is_dir():
+    app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "app" / "templates"))
 
 ADMIN_COOKIE = "davomat_admin"
