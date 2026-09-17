@@ -116,6 +116,12 @@ SQL Editor'idan jadvallarni CSV ga eksport qilish mumkin.
 `app/config.py` faylida. Vercel serveri qayerda turishidan qat'i nazar vaqt
 to'g'ri hisoblanadi.
 
+**Baza o'zgaruvchisining nomi muhim emas.** Vercel'ning Neon integratsiyasi
+o'zgaruvchilarga baza nomidan prefiks qo'shadi — masalan `checkin` deb nom
+bersangiz, manzil `CHECKIN_DATABASE_URL` ichida bo'ladi. Tizim nomning
+oxiriga qarab o'zi topadi, qo'lda hech narsa ko'chirish shart emas.
+Ulanish hovuzli (pooled) variant avtomatik afzal ko'riladi.
+
 **Konfiguratsiya fayli yo'q va kerak emas.** Vercel FastAPI ilovasini o'zi
 topadi: `app/main.py` ichidagi `app` o'zgaruvchisi uning standart qidiruv
 ro'yxatida. `public/` papkasidagi fayllar CDN orqali tarqatiladi
