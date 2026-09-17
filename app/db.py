@@ -15,8 +15,36 @@ from datetime import datetime, date
 
 from .config import DB_PATH, DATA_DIR, DEFAULT_SETTINGS, TZ
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+# Vercel'ning turli Postgres integratsiyalari o'zgaruvchini har xil nomlaydi.
+# Birinchi topilgani ishlatiladi; ulanish hovuzli (pooled) variantlar oldinda.
+URL_VARS = (
+    "DATABASE_URL",
+    "POSTGRES_URL",
+    "NEON_DATABASE_URL",
+    "DATABASE_URL_UNPOOLED",
+    "POSTGRES_URL_NON_POOLING",
+)
+
+
+def _find_url() -> tuple[str, str]:
+    """Muhit o'zgaruvchilaridan baza manzilini topadi: (nomi, qiymati)."""
+    for name in URL_VARS:
+        value = os.environ.get(name, "").strip()
+        if value.startswith(("postgres://", "postgresql://")):
+            return name, value
+    return "", ""
+
+
+URL_VAR_NAME, DATABASE_URL = _find_url()
 IS_PG = bool(DATABASE_URL)
+
+
+def db_env_names() -> list[str]:
+    """Mavjud baza o'zgaruvchilarining NOMLARI (tashxis uchun, qiymatsiz)."""
+    return sorted(
+        k for k in os.environ
+        if any(w in k.upper() for w in ("POSTGRES", "DATABASE", "NEON", "PG"))
+    )
 
 # --------------------------------------------------------------------------
 # Jadvallar

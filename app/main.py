@@ -253,12 +253,28 @@ async def require_database(request: Request, call_next):
     u yerda ishlay olmaydi: `DATABASE_URL` majburiy.
     """
     if os.environ.get("VERCEL") and not D.IS_PG:
+        found = D.db_env_names()
+        if found:
+            # O'zgaruvchi bor, lekin yaroqli postgres manzili emas
+            diag = ("<p style='%s'>Topilgan o'zgaruvchilar: %s</p>"
+                    "<p style='%s'>Ulardan hech biri "
+                    "<code style='%s'>postgresql://</code> bilan boshlanmaydi — "
+                    "qiymat noto'g'ri nusxalangan bo'lishi mumkin.</p>"
+                    % (DIM,
+                       ", ".join(f"<code style='{CODE}'>{n}</code>" for n in found),
+                       DIM, CODE))
+        else:
+            diag = (f"<p style='{DIM}'>Hozircha bironta ham baza o'zgaruvchisi "
+                    "ko'rinmayapti. Tekshiring: o'zgaruvchi <b>Production</b> "
+                    "muhiti uchun qo'shilganmi va undan <b>keyin</b> Redeploy "
+                    "qilinganmi?</p>")
         return error_page(
             "Ma'lumotlar bazasi ulanmagan",
-            f"<p style='{DIM}'>Vercel loyihasining <b>Settings &rarr; "
-            f"Environment Variables</b> bo'limiga <code style='{CODE}'>DATABASE_URL</code> "
-            "o'zgaruvchisini qo'shing (Neon'ning <b>pooled</b> manzili), so'ng "
-            "<b>Deployments</b> bo'limidan <b>Redeploy</b> qiling.</p>"
+            f"<p style='{DIM}'>Vercel loyihasida <b>Storage &rarr; Create Database "
+            "&rarr; Neon</b> orqali baza ulang, yoki <b>Settings &rarr; Environment "
+            f"Variables</b> bo'limiga <code style='{CODE}'>DATABASE_URL</code> "
+            "qo'shing (Neon'ning <b>pooled</b> manzili).</p>"
+            + diag +
             f"<p style='{DIM}'>Batafsil: repozitoriydagi "
             f"<code style='{CODE}'>VERCEL.md</code></p>",
             503,
