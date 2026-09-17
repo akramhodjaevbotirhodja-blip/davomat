@@ -34,12 +34,14 @@ ishlayveradi.
 
 ---
 
-## 2-qadam. Kodni GitHub'ga yuklash
+## 2-qadam. Kodni GitHub'ga yuklash — ✅ bajarildi
 
-Agar men siz uchun repozitoriy yaratgan bo'lsam, bu qadam tayyor. Aks holda:
+Repozitoriy tayyor: **https://github.com/akramhodjaevbotirhodja-blip/davomat**
+
+Keyinchalik kodni o'zgartirsangiz, yangilash uchun:
 
 ```bash
-gh repo create davomat --private --source=. --push
+git add -A; git commit -m "o'zgarish izohi"; git push
 ```
 
 ---
