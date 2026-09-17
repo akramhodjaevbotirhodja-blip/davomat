@@ -5,6 +5,7 @@ import math
 import os
 import secrets
 import socket
+import urllib.parse
 from contextlib import asynccontextmanager
 from datetime import datetime, date, timedelta, time as dtime
 
@@ -240,6 +241,48 @@ def shifts_of(settings: dict) -> dict:
     return out
 
 
+def parse_rest_day(value: str) -> int | None:
+    """Forma qiymatini hafta kuniga aylantiradi; bo'sh bo'lsa None."""
+    value = (value or "").strip()
+    if not value.isdigit():
+        return None
+    day = int(value)
+    return day if 1 <= day <= 7 else None
+
+
+def max_rest_per_day(settings: dict) -> int:
+    value = settings.get("max_rest_per_day", "2")
+    return int(value) if str(value).isdigit() and int(value) > 0 else 2
+
+
+def rest_day_counts(conn) -> dict:
+    """Har bir dam olish kuniga nechta faol xodim biriktirilgan."""
+    rows = conn.execute(
+        "SELECT rest_day, COUNT(*) c FROM employees"
+        " WHERE active = 1 AND rest_day IS NOT NULL GROUP BY rest_day"
+    ).fetchall()
+    return {int(r["rest_day"]): r["c"] for r in rows}
+
+
+def rest_day_conflict(conn, settings: dict, day: int | None,
+                      exclude_id: int | None = None) -> str:
+    """Shu kunni tanlash mumkinmi? Mumkin bo'lmasa sabab matni qaytadi."""
+    if day is None:
+        return ""
+    limit = max_rest_per_day(settings)
+    sql = ("SELECT COUNT(*) c FROM employees"
+           " WHERE active = 1 AND rest_day = ?")
+    params = [day]
+    if exclude_id is not None:
+        sql += " AND id <> ?"
+        params.append(exclude_id)
+    taken = conn.execute(sql, tuple(params)).fetchone()["c"]
+    if taken >= limit:
+        return (f"{WEEKDAYS_UZ[day - 1]} kuni allaqachon {taken} ta xodim "
+                f"dam oladi (chegara: {limit}). Boshqa kun tanlang.")
+    return ""
+
+
 def work_days_of(settings: dict) -> set[int]:
     """Ish kunlari to'plami: 1=Dushanba ... 7=Yakshanba."""
     raw = settings.get("work_days", "1,2,3,4,5,6")
@@ -252,8 +295,36 @@ def work_days_of(settings: dict) -> set[int]:
 
 
 def is_rest_day(day: date, work_days: set[int]) -> bool:
-    """Shu kun dam olish kunimi? (isoweekday: 1=Dushanba ... 7=Yakshanba)"""
+    """Ofis uchun umumiy dam olish kuni? (isoweekday: 1=Du ... 7=Ya)"""
     return day.isoweekday() not in work_days
+
+
+def rest_day_of(employee) -> int | None:
+    """Xodimning shaxsiy haftalik dam olish kuni, bo'lmasa None."""
+    try:
+        raw = employee["rest_day"]
+    except (KeyError, TypeError):
+        return None
+    if raw is None or raw == "":
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if 1 <= value <= 7 else None
+
+
+def employee_rests_on(employee, day: date, work_days: set[int]) -> bool:
+    """Shu xodim uchun bu kun dam olish kunimi?
+
+    Shaxsiy dam olish kuni belgilangan bo'lsa (masalan yakshanba ishlab,
+    seshanba dam oladiganlar), xodim faqat o'sha kuni dam oladi — qolgan
+    kunlar, jumladan ofisning umumiy dam olish kuni ham, ish kuni sanaladi.
+    """
+    personal = rest_day_of(employee)
+    if personal is not None:
+        return day.isoweekday() == personal
+    return is_rest_day(day, work_days)
 
 
 def shift_time_label(shift: dict) -> str:
@@ -802,7 +873,8 @@ def admin_home(request: Request, kun: str = ""):
             ).fetchall()
         }
 
-    rest_day = is_rest_day(day, work_days_of(settings))
+    work_days = work_days_of(settings)
+    rest_day = is_rest_day(day, work_days)
     rows, stats = [], {"keldi": 0, "kechikdi": 0, "kelmadi": 0, "sababli": 0}
     shift_stats = {}
     for e in employees:
@@ -813,7 +885,7 @@ def admin_home(request: Request, kun: str = ""):
             status = rec["status"]
         elif ab:
             status = ab["kind"]
-        elif rest_day:
+        elif employee_rests_on(e, day, work_days):
             # Dam olish kunida kelmaslik qoidabuzarlik emas
             status = "dam"
         elif is_flexible(shift):
@@ -839,6 +911,7 @@ def admin_home(request: Request, kun: str = ""):
         elif status not in ("belgilanmagan", "dam"):
             box["sababli"] += 1
 
+        personal_rest = rest_day_of(e)
         rows.append({
             "id": e["id"],
             "name": e["full_name"],
@@ -847,6 +920,7 @@ def admin_home(request: Request, kun: str = ""):
             "shift_no": shift["no"],
             "shift": shift["name"],
             "shift_time": shift_time_label(shift),
+            "rest_day": WEEKDAYS_UZ[personal_rest - 1] if personal_rest else "",
             "status": status,
             "check_in": hhmm(rec["check_in"]) if rec else "",
             "check_out": hhmm(rec["check_out"]) if rec else "",
@@ -937,51 +1011,71 @@ def manual_edit(request: Request, employee_id: int = Form(...), day: str = Form(
 # --------------------------------------------------------------------------
 
 @app.get("/admin/xodimlar", response_class=HTMLResponse)
-def employees_page(request: Request):
+def employees_page(request: Request, xato: str = ""):
     with D.db() as conn:
         settings = D.get_settings(conn)
         if (r := guard(request, settings)):
             return r
         rows = D.all_employees(conn)
+        counts = rest_day_counts(conn)
+    limit = max_rest_per_day(settings)
     return templates.TemplateResponse(
         request, "admin_employees.html",
         {"request": request, "settings": settings, "rows": rows,
-         "shifts": shifts_of(settings), "active": "employees"},
+         "shifts": shifts_of(settings), "xato": xato,
+         "weekdays": WEEKDAYS_UZ, "rest_counts": counts, "rest_limit": limit,
+         "work_days": work_days_of(settings),
+         "active": "employees"},
     )
 
 
 @app.post("/admin/xodimlar/qoshish")
 def employee_add(request: Request, full_name: str = Form(...),
                  position: str = Form(""), department: str = Form(""),
-                 phone: str = Form(""), shift: str = Form("1")):
+                 phone: str = Form(""), shift: str = Form("1"),
+                 rest_day: str = Form("")):
     with D.db() as conn:
         settings = D.get_settings(conn)
         if (r := guard(request, settings)):
             return r
         name = full_name.strip()
-        if name:
-            conn.execute(
-                "INSERT INTO employees (full_name, position, department, phone,"
-                " shift, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (name, position.strip(), department.strip(), phone.strip(),
-                 shift_no(shift, settings), D.now().isoformat(timespec="seconds")),
-            )
+        if not name:
+            return RedirectResponse("/admin/xodimlar", status_code=303)
+
+        day = parse_rest_day(rest_day)
+        if (xato := rest_day_conflict(conn, settings, day)):
+            return RedirectResponse(
+                "/admin/xodimlar?xato=" + urllib.parse.quote(xato), status_code=303)
+
+        conn.execute(
+            "INSERT INTO employees (full_name, position, department, phone,"
+            " shift, rest_day, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (name, position.strip(), department.strip(), phone.strip(),
+             shift_no(shift, settings), day,
+             D.now().isoformat(timespec="seconds")),
+        )
     return RedirectResponse("/admin/xodimlar", status_code=303)
 
 
 @app.post("/admin/xodimlar/{emp_id}/tahrir")
 def employee_edit(request: Request, emp_id: int, full_name: str = Form(...),
                   position: str = Form(""), department: str = Form(""),
-                  phone: str = Form(""), shift: str = Form("1")):
+                  phone: str = Form(""), shift: str = Form("1"),
+                  rest_day: str = Form("")):
     with D.db() as conn:
         settings = D.get_settings(conn)
         if (r := guard(request, settings)):
             return r
+        day = parse_rest_day(rest_day)
+        if (xato := rest_day_conflict(conn, settings, day, exclude_id=emp_id)):
+            return RedirectResponse(
+                "/admin/xodimlar?xato=" + urllib.parse.quote(xato), status_code=303)
+
         conn.execute(
             "UPDATE employees SET full_name = ?, position = ?, department = ?,"
-            " phone = ?, shift = ? WHERE id = ?",
+            " phone = ?, shift = ?, rest_day = ? WHERE id = ?",
             (full_name.strip(), position.strip(), department.strip(),
-             phone.strip(), shift_no(shift, settings), emp_id),
+             phone.strip(), shift_no(shift, settings), day, emp_id),
         )
     return RedirectResponse("/admin/xodimlar", status_code=303)
 
@@ -1099,6 +1193,7 @@ def build_report(conn, start: date, end: date, settings: dict | None = None):
     report = []
     for e in employees:
         shift = shift_of(e, settings)
+        personal_rest = rest_day_of(e)
         came = late = missed = excused = 0
         late_total = worked_total = 0
         cells = []
@@ -1106,7 +1201,7 @@ def build_report(conn, start: date, end: date, settings: dict | None = None):
             ds = d.isoformat()
             rec = att.get((e["id"], ds))
             kind = absent_kind(e["id"], ds)
-            weekend = is_rest_day(d, work_days)
+            weekend = employee_rests_on(e, d, work_days)
             if rec and rec["check_in"]:
                 status = rec["status"]
                 if status == "kechikdi":
@@ -1138,10 +1233,11 @@ def build_report(conn, start: date, end: date, settings: dict | None = None):
             "department": e["department"], "cells": cells,
             "shift": shift["name"],
             "shift_time": shift_time_label(shift),
+            "rest_day": WEEKDAYS_UZ[personal_rest - 1] if personal_rest else "",
             "came": came, "late": late, "missed": missed, "excused": excused,
             "late_total": late_total, "worked_total": worked_total,
             "present_days": came + late,
-            "workdays": len(workdays),
+            "workdays": sum(1 for d in days if not employee_rests_on(e, d, work_days)),
         })
     return report, days
 

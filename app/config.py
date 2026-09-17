@@ -38,6 +38,8 @@ DEFAULT_SETTINGS = {
     "flex_name": "Erkin jadval",
     # Ish kunlari: 1=Dushanba ... 7=Yakshanba. Standart — Du-Sha.
     "work_days": "1,2,3,4,5,6",
+    # Shaxsiy dam olish kuni: bir kunda nechta xodim dam olishi mumkin
+    "max_rest_per_day": "2",
     "late_grace_minutes": "5",
     "min_shift_minutes": "60",       # kelgandan keyin kamida shuncha vaqt o'tsa ketish yoziladi
     "device_limit_per_hour": "3",    # bitta telefondan 1 soatda nechta odam belgilanishi mumkin

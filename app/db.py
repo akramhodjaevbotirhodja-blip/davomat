@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS employees (
     department  TEXT    DEFAULT '',
     phone       TEXT    DEFAULT '',
     shift       INTEGER NOT NULL DEFAULT 1,
+    rest_day    INTEGER,
     active      INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT    NOT NULL
 );
@@ -213,6 +214,9 @@ def db():
 
 MIGRATIONS = [
     ("employees", "shift", "INTEGER NOT NULL DEFAULT 1"),
+    # Shaxsiy haftalik dam olish kuni (1=Dushanba ... 7=Yakshanba).
+    # Bo'sh bo'lsa xodim umumiy ish kunlari jadvaliga bo'ysunadi.
+    ("employees", "rest_day", "INTEGER"),
 ]
 
 

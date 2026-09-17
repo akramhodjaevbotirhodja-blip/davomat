@@ -2,6 +2,12 @@
 {% block title %}Xodimlar{% endblock %}
 
 {% block body %}
+{% if xato %}
+  <div class="warn-box" style="background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:#f87171">
+    ⚠ {{ xato }}
+  </div>
+{% endif %}
+
 <div class="section">
   <h2>Yangi xodim qo'shish</h2>
   <form class="card row" method="post" action="/admin/xodimlar/qoshish">
@@ -17,6 +23,18 @@
         {% endfor %}
       </select>
     </div>
+    <div>
+      <label>Dam olish kuni</label>
+      <select name="rest_day">
+        <option value="">Umumiy (jadval bo'yicha)</option>
+        {% for i in range(1, 8) %}
+          {% set band = rest_counts.get(i, 0) %}
+          <option value="{{ i }}" {% if band >= rest_limit %}disabled{% endif %}>
+            {{ weekdays[i - 1] }}{% if band %} — {{ band }}/{{ rest_limit }}{% endif %}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
     <div class="shrink"><button class="btn btn-primary">+ Qo'shish</button></div>
   </form>
 </div>
@@ -25,7 +43,7 @@
 <div class="table-scroll">
   <table>
     <thead>
-      <tr><th>F.I.Sh.</th><th>Smena</th><th>Lavozim</th><th>Bo'lim</th><th>Telefon</th><th>Holat</th><th>Amallar</th></tr>
+      <tr><th>F.I.Sh.</th><th>Smena</th><th>Dam olish</th><th>Lavozim</th><th>Bo'lim</th><th>Telefon</th><th>Holat</th><th>Amallar</th></tr>
     </thead>
     <tbody>
       {% for e in rows %}
@@ -46,11 +64,23 @@
                   {% endfor %}
                 </select>
               </div>
+              <div class="f"><label>Dam olish kuni</label>
+                <select name="rest_day">
+                  <option value="">Umumiy</option>
+                  {% for i in range(1, 8) %}
+                    <option value="{{ i }}" {% if e.rest_day == i %}selected{% endif %}>{{ weekdays[i - 1] }}</option>
+                  {% endfor %}
+                </select>
+              </div>
               <button class="btn btn-sm btn-primary">Saqlash</button>
             </form>
           </details>
         </td>
         <td><span class="badge b-smena{{ 1 if e.shift is none else e.shift }}">{{ shifts.get(1 if e.shift is none else e.shift, shifts[1]).name }}</span></td>
+        <td>
+          {% if e.rest_day %}<span class="badge b-dam">{{ weekdays[e.rest_day - 1] }}</span>
+          {% else %}<span class="muted small">umumiy</span>{% endif %}
+        </td>
         <td class="muted">{{ e.position }}</td>
         <td class="muted">{{ e.department }}</td>
         <td class="muted">{{ e.phone }}</td>
@@ -71,11 +101,38 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="muted center">Hozircha xodim qo'shilmagan</td></tr>
+      <tr><td colspan="8" class="muted center">Hozircha xodim qo'shilmagan</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+{% if rest_counts %}
+<div class="card" style="margin-top:18px">
+  <b>Shaxsiy dam olish kunlari</b>
+  <div class="days" style="margin-top:10px">
+    {% for i in range(1, 8) %}
+      {% set band = rest_counts.get(i, 0) %}
+      {% if band %}
+        <span class="day {{ 'on' if band < rest_limit else '' }}"
+              style="{% if band >= rest_limit %}border-color:var(--warn);color:var(--warn){% endif %}">
+          {{ weekdays[i - 1] }}: {{ band }}/{{ rest_limit }}
+        </span>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <p class="muted small" style="margin-bottom:0;margin-top:10px">
+    Bir kunda eng ko'pi bilan {{ rest_limit }} ta xodim dam olishi mumkin —
+    chegara to'lgan kun ro'yxatda tanlanmaydi.
+  </p>
+</div>
+{% endif %}
+
+<p class="muted small">
+  <b>Shaxsiy dam olish kuni</b> belgilangan xodim o'sha kuni dam oladi, qolgan
+  kunlar — jumladan ofisning umumiy dam olish kuni ham — uning uchun ish kuni
+  bo'ladi. Yakshanba ishlab, hafta ichida dam oladiganlar uchun shu kerak.
+</p>
+
 <p class="muted small">
   <b>Erkin jadval</b> — belgilangan kelish vaqti yo'q (masalan talabalar).
   Bunday xodimga kechikish hech qachon yozilmaydi, faqat ishlangan vaqt
