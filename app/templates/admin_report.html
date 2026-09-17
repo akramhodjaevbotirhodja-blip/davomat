@@ -1,0 +1,91 @@
+{% extends "admin_base.html" %}
+{% block title %}Hisobot{% endblock %}
+
+{% block body %}
+<div class="head-row">
+  <div>
+    <h2 style="margin-bottom:4px">Davomat hisoboti</h2>
+    <div class="muted small">{{ period_label }}</div>
+  </div>
+</div>
+
+<form class="card row no-print" method="get" action="/admin/hisobot" style="margin-bottom:22px">
+  <div><label>Davr boshi</label><input type="date" name="boshi" value="{{ start }}"></div>
+  <div><label>Davr oxiri</label><input type="date" name="oxiri" value="{{ end }}"></div>
+  <div class="shrink"><button class="btn btn-primary">Ko'rsatish</button></div>
+  <div class="shrink"><a class="btn btn-ok" href="/admin/hisobot/excel?boshi={{ start }}&oxiri={{ end }}">⬇ Excel</a></div>
+  <div class="shrink"><button class="btn" type="button" onclick="window.print()">🖨 Chop etish</button></div>
+</form>
+
+<div class="section">
+  <h2>Yig'ma</h2>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>F.I.Sh.</th><th>Lavozim</th>
+          <th>Keldi</th><th>Kechikdi</th><th>Kelmadi</th><th>Sababli</th>
+          <th>Jami kechikish</th><th>Ishlangan vaqt</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in report %}
+        <tr>
+          <td><b>{{ r.name }}</b></td>
+          <td class="muted">{{ r.position }}</td>
+          <td style="color:var(--ok)">{{ r.came }}</td>
+          <td style="color:var(--warn)">{{ r.late }}</td>
+          <td style="color:var(--bad)">{{ r.missed }}</td>
+          <td style="color:#a5b4fc">{{ r.excused }}</td>
+          <td>{% if r.late_total %}{{ r.late_total }} daq{% else %}—{% endif %}</td>
+          <td>{{ r.worked_total|fmt_minutes }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="muted center">Ma'lumot yo'q</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Kunlik jadval</h2>
+  <div class="grid-report">
+    <table>
+      <thead>
+        <tr>
+          <th class="nm">F.I.Sh.</th>
+          {% for d in days %}
+          <th {% if d.weekday() >= 5 %}class="muted"{% endif %}>{{ d.day }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in report %}
+        <tr>
+          <td class="nm">{{ r.name }}</td>
+          {% for c in r.cells %}
+          <td>
+            <span class="cell c-{{ c.status }}"
+                  title="{{ c.date }} · {{ STATUS_LABELS.get(c.status, 'Dam olish') }}{% if c.check_in %} · {{ c.check_in }}{% if c.check_out %}–{{ c.check_out }}{% endif %}{% endif %}">
+              {%- if c.status in ('keldi', 'kechikdi') -%}{{ c.check_in }}
+              {%- elif c.status == 'dam' -%}·
+              {%- elif c.status == 'kelmadi' -%}✕
+              {%- else -%}{{ STATUS_LABELS[c.status][0] }}{%- endif -%}
+            </span>
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="legend">
+    <span><i style="background:rgba(34,197,94,.4)"></i>O'z vaqtida</span>
+    <span><i style="background:rgba(245,158,11,.5)"></i>Kechikdi</span>
+    <span><i style="background:rgba(239,68,68,.4)"></i>Kelmadi</span>
+    <span><i style="background:rgba(99,102,241,.5)"></i>Sababli (T—ta'til, K—kasallik, K—komandirovka)</span>
+    <span><i style="background:rgba(255,255,255,.08)"></i>Dam olish kuni</span>
+  </div>
+</div>
+{% endblock %}

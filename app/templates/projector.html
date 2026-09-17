@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Davomat — proyektor</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="pj">
+
+  <div class="pj-head">
+    <h1 class="pj-title">🧠 Ishga xush kelibsiz!</h1>
+    <div class="pj-clock">🕐 <span id="clock">--:--:--</span></div>
+    <div class="muted small" style="margin-top:10px">{{ today_label }} · {{ settings.company_name }}</div>
+  </div>
+
+  <div class="pj-body">
+    <div class="qr-box">
+      <img id="qr" alt="QR kod" src="">
+    </div>
+
+    <div class="pj-side">
+      <div>
+        <div class="pj-label">YANGILANISHGACHA</div>
+        <div class="ring" style="margin-top:14px">
+          <svg viewBox="0 0 120 120">
+            <circle class="ring-track" cx="60" cy="60" r="52"></circle>
+            <circle class="ring-fill" id="ring" cx="60" cy="60" r="52"
+                    stroke-dasharray="326.7" stroke-dashoffset="0"></circle>
+          </svg>
+          <div class="ring-num" id="count">{{ rotate }}</div>
+        </div>
+        <p class="pj-hint">Telefon kamerasini QR-kodga qarating va ishga kelganingizni belgilang</p>
+      </div>
+
+      <div>
+        <div class="pj-label">BUGUN KELGANLAR</div>
+        <div class="pj-count"><span id="present">0</span><span> / <span id="total">0</span></span></div>
+        <div class="pj-feed" id="feed"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="offline" class="pj-offline" hidden>⚠ Server bilan aloqa yo'q — qayta ulanmoqda…</div>
+</div>
+
+<script>
+const ROTATE = {{ rotate }};
+const C = 2 * Math.PI * 52;
+const ring = document.getElementById('ring');
+const countEl = document.getElementById('count');
+const clockEl = document.getElementById('clock');
+const qrEl = document.getElementById('qr');
+const feedEl = document.getElementById('feed');
+const offlineEl = document.getElementById('offline');
+
+// Server bir so'rovda bir nechta kelgusi QR beradi — ularni shu yerda
+// almashtiramiz, shunda serverga kamdan-kam murojaat qilinadi.
+let slots = [];
+let syncAt = 0;             // sinxronlash payti (ms)
+let secondsLeftAtSync = 0;  // o'sha paytda joriy QR qancha qolgani
+let shownIndex = -1;
+let failures = 0;
+
+function slotIndex() {
+  const elapsed = (Date.now() - syncAt) / 1000;
+  if (elapsed < secondsLeftAtSync) return 0;
+  return 1 + Math.floor((elapsed - secondsLeftAtSync) / ROTATE);
+}
+
+function secondsLeft() {
+  const elapsed = (Date.now() - syncAt) / 1000;
+  if (elapsed < secondsLeftAtSync) return Math.ceil(secondsLeftAtSync - elapsed);
+  const since = (elapsed - secondsLeftAtSync) % ROTATE;
+  return Math.ceil(ROTATE - since);
+}
+
+async function sync() {
+  try {
+    const res = await fetch('/api/state', { cache: 'no-store' });
+    if (!res.ok) throw new Error(res.status);
+    const s = await res.json();
+
+    slots = s.slots || [{ token: s.token, qr: s.qr }];
+    secondsLeftAtSync = s.seconds_left;
+    syncAt = Date.now();
+    shownIndex = -1;
+
+    document.getElementById('present').textContent = s.present;
+    document.getElementById('total').textContent = s.total;
+    feedEl.innerHTML = s.recent.slice(0, 6).map(r => `
+      <div class="pj-feed-item">
+        <b>${escapeHtml(r.name)}</b>
+        <span class="pj-feed-time">${r.time}${r.out ? ' → ' + r.out : ''}${r.late ? ' ⚠' : ''}</span>
+      </div>`).join('');
+
+    failures = 0;
+    offlineEl.hidden = true;
+    tick();
+  } catch (e) {
+    failures++;
+    if (failures >= 2) offlineEl.hidden = false;
+  }
+}
+
+function tick() {
+  clockEl.textContent = new Date().toTimeString().slice(0, 8);
+  if (!slots.length) return;
+
+  const left = secondsLeft();
+  countEl.textContent = left;
+  ring.style.strokeDashoffset = C * (1 - left / ROTATE);
+
+  const idx = slotIndex();
+  if (idx >= slots.length) { sync(); return; }   // zaxira tugadi
+  if (idx !== shownIndex) {
+    qrEl.src = slots[idx].qr;
+    shownIndex = idx;
+  }
+  // Oxirgi zaxira QR'ga yetganda oldindan yangilab qo'yamiz
+  if (idx === slots.length - 1 && left < ROTATE - 2) sync();
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+setInterval(tick, 1000);
+sync();
+// Kelganlar ro'yxatini yangilab turish uchun (QR zaxirasi tugamasa ham)
+setInterval(sync, 60000);
+</script>
+</body>
+</html>

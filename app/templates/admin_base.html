@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Admin{% endblock %} — Davomat</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<nav class="nav">
+  <span class="nav-brand">📋 {{ settings.company_name }}</span>
+  <a href="/admin"            class="{{ 'on' if active == 'today' }}">Bugun</a>
+  <a href="/admin/hisobot"    class="{{ 'on' if active == 'report' }}">Hisobot</a>
+  <a href="/admin/xodimlar"   class="{{ 'on' if active == 'employees' }}">Xodimlar</a>
+  <a href="/admin/yoqliklar"  class="{{ 'on' if active == 'absences' }}">Yo'qliklar</a>
+  <a href="/admin/sozlamalar" class="{{ 'on' if active == 'settings' }}">Sozlamalar</a>
+  <span class="spacer"></span>
+  <a href="/projector" target="_blank">📺 Proyektor</a>
+  <a href="/admin/logout">Chiqish</a>
+</nav>
+
+<div class="wrap">
+  {% block body %}{% endblock %}
+</div>
+</body>
+</html>

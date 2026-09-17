@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Davomat — ismingizni tanlang</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="phone">
+
+  <div class="phone-head">
+    <h1>Ismingizni tanlang</h1>
+    <div class="muted small">{{ today_label }}</div>
+  </div>
+
+  {% if geo_required %}
+  <div class="geo" id="geo">
+    <span class="geo-dot"></span>
+    <span id="geo-text">Joylashuv aniqlanmoqda…</span>
+  </div>
+  {% endif %}
+
+  <div class="search-box">
+    <input id="q" type="search" placeholder="🔍 Qidirish…" autocomplete="off">
+  </div>
+
+  <div class="emp-list" id="list">
+    {% for it in items %}
+      {% if it.action %}
+      <form method="post" action="/c/{{ token }}/mark" class="emp-form" data-name="{{ it.name|lower }}">
+        <input type="hidden" name="employee_id" value="{{ it.id }}">
+        <input type="hidden" name="action" value="{{ it.action }}">
+        <input type="hidden" name="lat" value="">
+        <input type="hidden" name="lng" value="">
+        <input type="hidden" name="acc" value="">
+        <button class="emp" type="submit" {% if geo_required %}disabled{% endif %}>
+          <span class="emp-av">{{ it.name.split()|map('first')|join|upper|truncate(2, true, '', 0) }}</span>
+          <span class="emp-main">
+            <span class="emp-name">{{ it.name }}</span>
+            <span class="emp-sub">
+              {%- if it.state == 'kelgan' %}Keldi: {{ it.check_in }}
+              {%- elif it.absence %}{{ it.absence }}
+              {%- else %}{{ it.position or 'Xodim' }}{% endif -%}
+            </span>
+          </span>
+          <span class="emp-act {{ 'act-kelish' if it.action == 'kelish' else 'act-ketish' }}">
+            {{ 'Keldim →' if it.action == 'kelish' else 'Ketdim →' }}
+          </span>
+        </button>
+      </form>
+      {% else %}
+      <div class="emp" disabled data-name="{{ it.name|lower }}">
+        <span class="emp-av">{{ it.name.split()|map('first')|join|upper|truncate(2, true, '', 0) }}</span>
+        <span class="emp-main">
+          <span class="emp-name">{{ it.name }}</span>
+          <span class="emp-sub">{{ it.check_in }} → {{ it.check_out }}</span>
+        </span>
+        <span class="emp-act muted">✓ Yakunlandi</span>
+      </div>
+      {% endif %}
+    {% else %}
+      <p class="muted center">Ro'yxatda faol xodim yo'q. Administrator xodimlarni qo'shishi kerak.</p>
+    {% endfor %}
+  </div>
+
+  <p class="muted small center" style="margin-top:22px">
+    QR kod har {{ rotate }} soniyada yangilanadi — bu sahifa ham shuncha vaqt amal qiladi.
+  </p>
+</div>
+
+<script>
+const q = document.getElementById('q');
+const items = [...document.querySelectorAll('[data-name]')];
+q.addEventListener('input', () => {
+  const v = q.value.trim().toLowerCase();
+  items.forEach(el => {
+    el.style.display = !v || el.dataset.name.includes(v) ? '' : 'none';
+  });
+});
+
+// Ikki marta bosilib yuborilmasligi uchun
+document.querySelectorAll('.emp-form').forEach(f => {
+  f.addEventListener('submit', () => {
+    const b = f.querySelector('button');
+    b.disabled = true;
+    b.querySelector('.emp-act').textContent = 'Yuborilmoqda…';
+  });
+});
+
+{% if geo_required %}
+// Joylashuv tekshiruvi yoqilgan — koordinata olinmaguncha tugmalar yopiq
+const geoBox = document.getElementById('geo');
+const geoText = document.getElementById('geo-text');
+const buttons = [...document.querySelectorAll('.emp-form button')];
+
+function geoFail(text) {
+  geoBox.classList.add('geo-bad');
+  geoText.textContent = text;
+}
+
+if (!navigator.geolocation) {
+  geoFail('Bu brauzer joylashuvni aniqlay olmaydi. Boshqa brauzerdan oching.');
+} else {
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      document.querySelectorAll('.emp-form').forEach(f => {
+        f.querySelector('[name=lat]').value = pos.coords.latitude;
+        f.querySelector('[name=lng]').value = pos.coords.longitude;
+        f.querySelector('[name=acc]').value = Math.round(pos.coords.accuracy);
+      });
+      buttons.forEach(b => b.disabled = false);
+      geoBox.classList.add('geo-ok');
+      geoText.textContent = 'Joylashuv aniqlandi (±' + Math.round(pos.coords.accuracy) + ' m)';
+    },
+    err => {
+      geoFail(err.code === 1
+        ? 'Joylashuvga ruxsat berilmadi. Brauzer sozlamasidan ruxsat bering va sahifani yangilang.'
+        : 'Joylashuv aniqlanmadi. Ochiq joyga chiqib qayta urinib ko\'ring.');
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+  );
+}
+{% endif %}
+</script>
+</body>
+</html>

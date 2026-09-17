@@ -1,0 +1,18 @@
+# Lokal ma'lumotlar bazasi — bulutga yuklanmaydi
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Muhit o'zgaruvchilari (DATABASE_URL shu yerda turadi)
+.env
+.env.local
+
+# Vercel
+.vercel/

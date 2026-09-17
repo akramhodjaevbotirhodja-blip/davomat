@@ -1,0 +1,64 @@
+{% extends "admin_base.html" %}
+{% block title %}Xodimlar{% endblock %}
+
+{% block body %}
+<div class="section">
+  <h2>Yangi xodim qo'shish</h2>
+  <form class="card row" method="post" action="/admin/xodimlar/qoshish">
+    <div><label>F.I.Sh. *</label><input name="full_name" required placeholder="Aliyev Vali Salimovich"></div>
+    <div><label>Lavozim</label><input name="position" placeholder="Dasturchi"></div>
+    <div><label>Bo'lim</label><input name="department" placeholder="IT"></div>
+    <div><label>Telefon</label><input name="phone" placeholder="+998 90 123 45 67"></div>
+    <div class="shrink"><button class="btn btn-primary">+ Qo'shish</button></div>
+  </form>
+</div>
+
+<h2>Xodimlar ro'yxati ({{ rows|selectattr('active')|list|length }} faol)</h2>
+<div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th>F.I.Sh.</th><th>Lavozim</th><th>Bo'lim</th><th>Telefon</th><th>Holat</th><th>Amallar</th></tr>
+    </thead>
+    <tbody>
+      {% for e in rows %}
+      <tr>
+        <td>
+          <b {% if not e.active %}class="muted"{% endif %}>{{ e.full_name }}</b>
+          <details class="edit">
+            <summary>tahrirlash</summary>
+            <form class="edit-form" method="post" action="/admin/xodimlar/{{ e.id }}/tahrir">
+              <div class="f wide"><label>F.I.Sh.</label><input name="full_name" value="{{ e.full_name }}" required></div>
+              <div class="f"><label>Lavozim</label><input name="position" value="{{ e.position }}"></div>
+              <div class="f"><label>Bo'lim</label><input name="department" value="{{ e.department }}"></div>
+              <div class="f"><label>Telefon</label><input name="phone" value="{{ e.phone }}"></div>
+              <button class="btn btn-sm btn-primary">Saqlash</button>
+            </form>
+          </details>
+        </td>
+        <td class="muted">{{ e.position }}</td>
+        <td class="muted">{{ e.department }}</td>
+        <td class="muted">{{ e.phone }}</td>
+        <td>
+          {% if e.active %}<span class="badge b-keldi">Faol</span>
+          {% else %}<span class="badge b-kelmadi">Nofaol</span>{% endif %}
+        </td>
+        <td>
+          <div class="row shrink" style="gap:6px">
+            <form method="post" action="/admin/xodimlar/{{ e.id }}/holat">
+              <button class="btn btn-sm">{{ 'Nofaol qilish' if e.active else 'Faollashtirish' }}</button>
+            </form>
+            <form method="post" action="/admin/xodimlar/{{ e.id }}/ochirish"
+                  onsubmit="return confirm('{{ e.full_name }} va uning BARCHA davomat yozuvlari butunlay o\'chiriladi. Davom etasizmi?')">
+              <button class="btn btn-sm btn-bad">O'chirish</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted center">Hozircha xodim qo'shilmagan</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="muted small">Ishdan bo'shagan xodimni <b>o'chirish</b> o'rniga <b>nofaol</b> qilib qo'ying — shunda eski hisobotlar saqlanib qoladi.</p>
+{% endblock %}

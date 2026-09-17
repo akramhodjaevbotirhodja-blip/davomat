@@ -1,0 +1,53 @@
+{% extends "admin_base.html" %}
+{% block title %}Yo'qliklar{% endblock %}
+
+{% block body %}
+<div class="section">
+  <h2>Sababli yo'qlik qo'shish</h2>
+  <form class="card row" method="post" action="/admin/yoqliklar/qoshish">
+    <div>
+      <label>Xodim *</label>
+      <select name="employee_id" required>
+        {% for e in employees %}<option value="{{ e.id }}">{{ e.full_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label>Boshlanishi</label><input type="date" name="date_from" value="{{ today }}" required></div>
+    <div><label>Tugashi</label><input type="date" name="date_to" value="{{ today }}" required></div>
+    <div>
+      <label>Turi</label>
+      <select name="kind">
+        {% for k in kinds %}<option value="{{ k }}">{{ STATUS_LABELS[k] }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label>Izoh</label><input name="note" placeholder="ixtiyoriy"></div>
+    <div class="shrink"><button class="btn btn-primary">+ Qo'shish</button></div>
+  </form>
+</div>
+
+<h2>Yozuvlar</h2>
+<div class="table-scroll">
+  <table>
+    <thead><tr><th>Xodim</th><th>Turi</th><th>Boshlanishi</th><th>Tugashi</th><th>Kun</th><th>Izoh</th><th></th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><b>{{ r.full_name }}</b></td>
+        <td><span class="badge b-{{ r.kind }}">{{ STATUS_LABELS[r.kind] }}</span></td>
+        <td>{{ r.date_from }}</td>
+        <td>{{ r.date_to }}</td>
+        <td class="muted">{{ r.days }}</td>
+        <td class="muted">{{ r.note }}</td>
+        <td>
+          <form method="post" action="/admin/yoqliklar/{{ r.id }}/ochirish">
+            <button class="btn btn-sm btn-bad">O'chirish</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="muted center">Hozircha yozuv yo'q</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="muted small">Bu kunlarda xodim «kelmadi» emas, tanlangan sabab bilan belgilanadi va hisobotda alohida hisoblanadi.</p>
+{% endblock %}

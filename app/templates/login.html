@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin — kirish</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login">
+  <form class="card" method="post" action="/admin/login">
+    <h2 style="text-align:center">🔐 Admin panel</h2>
+    {% if xato %}
+      <p class="small" style="color:#f87171; text-align:center">Parol noto'g'ri</p>
+    {% endif %}
+    <div class="field">
+      <label for="password">Parol</label>
+      <input id="password" type="password" name="password" autofocus required>
+    </div>
+    <button class="btn btn-primary" style="width:100%">Kirish</button>
+    <p class="muted small center" style="margin-bottom:0">Boshlang'ich parol: <code>admin</code></p>
+  </form>
+</div>
+</body>
+</html>

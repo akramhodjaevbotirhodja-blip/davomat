@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+jinja2
+qrcode[pil]
+openpyxl
+python-multipart
+itsdangerous
+tzdata
+psycopg[binary]

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="msg">
+  <div class="msg-inner">
+    <div class="msg-icon {{ 'msg-ok' if ok else 'msg-bad' }}">{{ '✓' if ok else '!' }}</div>
+    <h1>{{ title }}</h1>
+    <p>{{ text }}</p>
+    <div class="muted small">Bu oynani yopishingiz mumkin</div>
+  </div>
+</div>
+</body>
+</html>

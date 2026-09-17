@@ -1,0 +1,75 @@
+{% extends "admin_base.html" %}
+{% block title %}Bugun{% endblock %}
+
+{% block body %}
+<div class="head-row">
+  <div>
+    <h2 style="margin-bottom:4px">{{ day_label }}</h2>
+    <div class="muted small">Kunlik davomat jadvali</div>
+  </div>
+  <div class="row shrink no-print">
+    <a class="btn btn-sm" href="/admin?kun={{ prev_day }}">← Oldingi</a>
+    {% if day != today %}<a class="btn btn-sm" href="/admin">Bugun</a>{% endif %}
+    <a class="btn btn-sm" href="/admin?kun={{ next_day }}">Keyingi →</a>
+    <button class="btn btn-sm" onclick="window.print()">🖨 Chop etish</button>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="stat-num" style="color:var(--ok)">{{ stats.keldi }}</div><div class="stat-lbl">O'z vaqtida keldi</div></div>
+  <div class="stat"><div class="stat-num" style="color:var(--warn)">{{ stats.kechikdi }}</div><div class="stat-lbl">Kechikdi</div></div>
+  <div class="stat"><div class="stat-num" style="color:var(--bad)">{{ stats.kelmadi }}</div><div class="stat-lbl">Kelmadi</div></div>
+  <div class="stat"><div class="stat-num" style="color:#a5b4fc">{{ stats.sababli }}</div><div class="stat-lbl">Sababli</div></div>
+</div>
+
+<div class="table-scroll">
+  <table>
+    <thead>
+      <tr>
+        <th>F.I.Sh.</th>
+        <th>Lavozim</th>
+        <th>Holat</th>
+        <th>Keldi</th>
+        <th>Ketdi</th>
+        <th>Kechikish</th>
+        <th>Ishlangan</th>
+        <th class="no-print">Tuzatish</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>
+          <b>{{ r.name }}</b>
+          {% if r.flagged %}<span class="flag" title="Bitta telefondan bir nechta xodim belgilangan — tekshiring">⚠</span>{% endif %}
+          {% if r.manual %}<span class="muted small" title="Qo'lda kiritilgan">✎</span>{% endif %}
+          {% if r.note %}<div class="muted small">{{ r.note }}</div>{% endif %}
+        </td>
+        <td class="muted">{{ r.position }}</td>
+        <td><span class="badge b-{{ r.status }}">{{ STATUS_LABELS.get(r.status, r.status) }}</span></td>
+        <td>{{ r.check_in or '—' }}</td>
+        <td>{{ r.check_out or '—' }}</td>
+        <td>{% if r.late %}<span style="color:var(--warn)">{{ r.late }} daq</span>{% else %}—{% endif %}</td>
+        <td>{{ r.worked|fmt_minutes }}</td>
+        <td class="no-print">
+          <details class="edit">
+            <summary>Tahrirlash</summary>
+            <form class="edit-form" method="post" action="/admin/attendance/manual">
+              <input type="hidden" name="employee_id" value="{{ r.id }}">
+              <input type="hidden" name="day" value="{{ day }}">
+              <div class="f"><label>Keldi</label><input type="time" name="check_in" value="{{ r.check_in }}"></div>
+              <div class="f"><label>Ketdi</label><input type="time" name="check_out" value="{{ r.check_out }}"></div>
+              <div class="f wide"><label>Izoh</label><input name="note" value="{{ r.note }}" placeholder="sabab…"></div>
+              <button class="btn btn-sm btn-primary">Saqlash</button>
+            </form>
+            <p class="muted small">Kelish vaqtini bo'sh qoldirib saqlasangiz — kun yozuvi o'chiriladi.</p>
+          </details>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="muted center">Xodimlar ro'yxati bo'sh. <a href="/admin/xodimlar">Xodim qo'shing →</a></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,145 @@
+{% extends "admin_base.html" %}
+{% block title %}Sozlamalar{% endblock %}
+
+{% block body %}
+<h2>Sozlamalar</h2>
+{% if saqlandi %}
+  <p class="badge b-keldi" style="display:inline-block;margin-bottom:16px">✓ Saqlandi</p>
+{% endif %}
+
+{% if is_cloud and settings.admin_password == 'admin' %}
+  <div class="warn-box">
+    ⚠ <b>Parol hali ham <code>admin</code>.</b> Tizim internetda turibdi —
+    manzilni bilgan har kim admin panelga kira oladi. Pastdan yangi parol qo'ying.
+  </div>
+{% endif %}
+
+<form class="card" method="post" action="/admin/sozlamalar" style="max-width:760px">
+  <div class="field">
+    <label>Kompaniya nomi</label>
+    <input name="company_name" value="{{ settings.company_name }}">
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>Ish boshlanishi</label>
+      <input type="time" name="work_start" value="{{ settings.work_start }}">
+    </div>
+    <div class="field">
+      <label>Ish tugashi</label>
+      <input type="time" name="work_end" value="{{ settings.work_end }}">
+    </div>
+    <div class="field">
+      <label>Kechikish chegarasi (daqiqa)</label>
+      <input name="late_grace_minutes" value="{{ settings.late_grace_minutes }}">
+    </div>
+  </div>
+  <p class="muted small" style="margin-top:-6px">
+    Ish boshlanishidan keyin shu daqiqa ichida kelgan xodim kechikkan hisoblanmaydi.
+  </p>
+
+  <div class="row">
+    <div class="field">
+      <label>Ketishni belgilashga ruxsat (daqiqadan keyin)</label>
+      <input name="min_shift_minutes" value="{{ settings.min_shift_minutes }}">
+    </div>
+    <div class="field">
+      <label>Bitta telefondan soatiga nechta xodim</label>
+      <input name="device_limit_per_hour" value="{{ settings.device_limit_per_hour }}">
+    </div>
+  </div>
+  <p class="muted small" style="margin-top:-6px">
+    Chegaradan oshsa yozuv ⚠ bilan belgilanadi — bloklanmaydi, faqat tekshirish uchun ko'rsatiladi.
+  </p>
+
+  <hr class="sep">
+  <h3 class="sub">📍 Joylashuv tekshiruvi</h3>
+  <p class="muted small">
+    {% if is_cloud %}
+      Tizim internetda turgani uchun bu tekshiruv <b>tavsiya etiladi</b>: usiz
+      xodim uydan turib ham belgilay oladi.
+    {% else %}
+      Lokal tarmoqda ishlayotganingiz uchun bu shart emas — ofis Wi-Fi'ining o'zi
+      hozirlik isboti. Eslatma: brauzer joylashuvni faqat HTTPS orqali beradi,
+      oddiy lokal manzilda ishlamaydi.
+    {% endif %}
+  </p>
+
+  <label class="check">
+    <input type="checkbox" name="geo_required" value="1"
+           {% if settings.geo_required == '1' %}checked{% endif %}>
+    <span>Faqat ofis hududidan belgilashga ruxsat berilsin</span>
+  </label>
+
+  <div class="row" style="margin-top:14px">
+    <div class="field">
+      <label>Ofis kengligi (latitude)</label>
+      <input name="office_lat" id="lat" value="{{ settings.office_lat }}" placeholder="41.311081">
+    </div>
+    <div class="field">
+      <label>Ofis uzunligi (longitude)</label>
+      <input name="office_lng" id="lng" value="{{ settings.office_lng }}" placeholder="69.240562">
+    </div>
+    <div class="field">
+      <label>Ruxsat radiusi (metr)</label>
+      <input name="geo_radius_m" value="{{ settings.geo_radius_m }}">
+    </div>
+    <div class="shrink field">
+      <button class="btn" type="button" id="here">📍 Shu yerdan olish</button>
+    </div>
+  </div>
+  <p class="muted small" style="margin-top:-6px" id="here-msg">
+    Ofisda turib «Shu yerdan olish» tugmasini bosing — koordinata avtomatik to'ladi.
+    Radiusni 100–300 metr qilib qo'ying: telefon GPS'i har doim ham aniq emas.
+  </p>
+
+  <hr class="sep">
+
+  <div class="field">
+    <label>QR koddagi manzil</label>
+    <input name="base_url_value" value="{{ settings.base_url }}" placeholder="{{ auto_url }}">
+  </div>
+  <p class="muted small" style="margin-top:-6px">
+    Xodimlar telefoni shu manzilga ulanadi.
+    {% if is_cloud %}
+      Bo'sh qoldirsangiz tizim domenni o'zi aniqlaydi (hozir: <b>{{ auto_url }}</b>).
+      O'z domeningizni ulasangiz shu yerga yozing.
+    {% else %}
+      Bu kompyuterning hozirgi lokal IP manzili: <b>{{ lan_ip }}</b>.
+      IP o'zgarsa shu yerda yangilang.
+    {% endif %}
+  </p>
+
+  <div class="field">
+    <label>Yangi admin paroli (o'zgartirmoqchi bo'lsangiz)</label>
+    <input type="password" name="admin_password" placeholder="bo'sh qoldirsangiz o'zgarmaydi">
+  </div>
+
+  <button class="btn btn-primary">Saqlash</button>
+</form>
+
+<script>
+document.getElementById('here').addEventListener('click', () => {
+  const msg = document.getElementById('here-msg');
+  if (!navigator.geolocation) {
+    msg.textContent = 'Bu brauzer joylashuvni aniqlay olmaydi.';
+    return;
+  }
+  msg.textContent = 'Aniqlanmoqda…';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      document.getElementById('lat').value = pos.coords.latitude.toFixed(6);
+      document.getElementById('lng').value = pos.coords.longitude.toFixed(6);
+      msg.textContent = 'Olindi (±' + Math.round(pos.coords.accuracy) +
+                        ' m). Saqlashni unutmang.';
+    },
+    err => {
+      msg.textContent = err.code === 1
+        ? 'Ruxsat berilmadi. Brauzer sozlamasidan joylashuvga ruxsat bering.'
+        : 'Aniqlanmadi. HTTPS orqali ochilganiga ishonch hosil qiling.';
+    },
+    { enableHighAccuracy: true, timeout: 12000 }
+  );
+});
+</script>
+{% endblock %}
