@@ -6,6 +6,10 @@
   <div>
     <h2 style="margin-bottom:4px">Davomat hisoboti</h2>
     <div class="muted small">{{ period_label }}</div>
+    <div class="muted small" style="margin-top:4px">
+      Bitta xodimning kunma-kun ma'lumotini ko'rish uchun uning <b>ismini bosing</b> —
+      kechikkan kunlari va soat nechida kelgani alohida ko'rsatiladi.
+    </div>
   </div>
 </div>
 
@@ -31,7 +35,7 @@
       <tbody>
         {% for r in report %}
         <tr>
-          <td><b>{{ r.name }}</b></td>
+          <td><a class="emp-link" href="/admin/xodim/{{ r.id }}?boshi={{ start }}&oxiri={{ end }}"><b>{{ r.name }}</b></a></td>
           <td class="muted small">{{ r.shift }}<br><span class="muted">{{ r.shift_time }}</span></td>
           <td class="muted">{{ r.position }}</td>
           <td style="color:var(--ok)">{{ r.came }}</td>
@@ -64,7 +68,7 @@
       <tbody>
         {% for r in report %}
         <tr>
-          <td class="nm">{{ r.name }}<br><span class="muted" style="font-size:10px">{{ r.shift }}</span></td>
+          <td class="nm"><a class="emp-link" href="/admin/xodim/{{ r.id }}?boshi={{ start }}&oxiri={{ end }}">{{ r.name }}</a><br><span class="muted" style="font-size:10px">{{ r.shift }}</span></td>
           {% for c in r.cells %}
           <td>
             <span class="cell c-{{ c.status }}"

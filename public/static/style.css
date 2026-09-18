@@ -478,3 +478,18 @@ details.edit[open] summary { color: var(--muted); }
 
 /* Dam olish kuni — kunlik jadvalda */
 .b-dam { background: rgba(139,149,170,.14); color: var(--muted); }
+
+/* Xodim tafsiloti sahifasiga havola */
+.emp-link { color: inherit; border-bottom: 1px dotted var(--muted); }
+.emp-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Kechikkan kelish vaqti — asosiy ko'rsatkich */
+.late-time {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: rgba(245,158,11,.16);
+  color: #fbbf24;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}

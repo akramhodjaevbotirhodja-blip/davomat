@@ -1,0 +1,96 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ emp.full_name }}{% endblock %}
+
+{% block body %}
+<div class="head-row">
+  <div>
+    <h2 style="margin-bottom:4px">{{ emp.full_name }}</h2>
+    <div class="muted small">
+      {{ row.shift }}{% if row.shift_time != '—' %} · {{ row.shift_time }}{% endif %}
+      {%- if emp.position %} · {{ emp.position }}{% endif %}
+      {%- if row.rest_day %} · dam olish: {{ row.rest_day }}{% endif %}
+    </div>
+    <div class="muted small" style="margin-top:4px">{{ period_label }}</div>
+  </div>
+  <div class="row shrink no-print">
+    <a class="btn btn-sm" href="/admin/hisobot?boshi={{ start }}&oxiri={{ end }}">← Hisobotga</a>
+    <button class="btn btn-sm" onclick="window.print()">🖨 Chop etish</button>
+  </div>
+</div>
+
+<form class="card row no-print" method="get" action="/admin/xodim/{{ emp.id }}"
+      style="margin-bottom:22px">
+  <div><label>Davr boshi</label><input type="date" name="boshi" value="{{ start }}"></div>
+  <div><label>Davr oxiri</label><input type="date" name="oxiri" value="{{ end }}"></div>
+  <div class="shrink"><button class="btn btn-primary">Ko'rsatish</button></div>
+</form>
+
+<div class="stats">
+  <div class="stat"><div class="stat-num" style="color:var(--ok)">{{ row.came }}</div><div class="stat-lbl">O'z vaqtida</div></div>
+  <div class="stat"><div class="stat-num" style="color:var(--warn)">{{ row.late }}</div><div class="stat-lbl">Kechikdi</div></div>
+  <div class="stat"><div class="stat-num" style="color:var(--bad)">{{ row.missed }}</div><div class="stat-lbl">Kelmadi</div></div>
+  <div class="stat"><div class="stat-num" style="color:#a5b4fc">{{ row.excused }}</div><div class="stat-lbl">Sababli</div></div>
+  <div class="stat"><div class="stat-num">{{ row.late_total }}</div><div class="stat-lbl">Jami kechikish (daq)</div></div>
+  <div class="stat"><div class="stat-num" style="font-size:22px">{{ row.worked_total|fmt_minutes }}</div><div class="stat-lbl">Ishlangan vaqt</div></div>
+</div>
+
+{# Asosiy so'ralgan ma'lumot: qaysi kuni soat nechida kelgan #}
+<div class="section">
+  <h2>⏰ Kechikkan kunlar ({{ late_days|length }})</h2>
+  {% if late_days %}
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Sana</th><th>Hafta kuni</th><th>Keldi</th><th>Kechikish</th><th>Ketdi</th><th>Ishlangan</th></tr>
+      </thead>
+      <tbody>
+        {% for c in late_days %}
+        <tr>
+          <td><b>{{ c.label }}</b></td>
+          <td class="muted">{{ c.weekday }}</td>
+          <td><span class="late-time">{{ c.check_in }}</span></td>
+          <td style="color:var(--warn)"><b>{{ c.late }} daq</b>{% if c.late >= 60 %}
+            <span class="muted small">({{ c.late // 60 }} soat {{ c.late % 60 }} daq)</span>{% endif %}</td>
+          <td>{{ c.check_out or '—' }}</td>
+          <td class="muted">{{ c.worked|fmt_minutes }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card center muted">Bu davrda kechikish qayd etilmagan 👍</div>
+  {% endif %}
+</div>
+
+<div class="section">
+  <h2>Kunma-kun</h2>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Sana</th><th>Hafta kuni</th><th>Holat</th><th>Keldi</th><th>Ketdi</th><th>Kechikish</th><th>Ishlangan</th></tr>
+      </thead>
+      <tbody>
+        {% for c in row.cells %}
+        <tr {% if c.status == 'dam' %}class="muted"{% endif %}>
+          <td>{{ c.label }}</td>
+          <td class="muted">{{ c.weekday }}</td>
+          <td>
+            <span class="badge b-{{ c.status }}">{{ STATUS_LABELS.get(c.status, c.status) }}</span>
+            {% if c.manual %}<span class="muted small" title="Qo'lda kiritilgan">✎</span>{% endif %}
+          </td>
+          <td>{% if c.check_in %}{% if c.status == 'kechikdi' %}<span class="late-time">{{ c.check_in }}</span>{% else %}{{ c.check_in }}{% endif %}{% else %}—{% endif %}</td>
+          <td>{{ c.check_out or '—' }}</td>
+          <td>
+            {%- if c.status == 'kechikdi' %}<span style="color:var(--warn)">{{ c.late }} daq</span>
+            {%- elif c.late %}<span class="muted" title="Kechikish chegarasi ichida">{{ c.late }} daq</span>
+            {%- else %}—{% endif -%}
+          </td>
+          <td class="muted">{{ c.worked|fmt_minutes }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

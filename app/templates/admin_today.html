@@ -64,7 +64,7 @@
       {% for r in rows %}
       <tr>
         <td>
-          <b>{{ r.name }}</b>
+          <a class="emp-link" href="/admin/xodim/{{ r.id }}"><b>{{ r.name }}</b></a>
           {% if r.flagged %}<span class="flag" title="Bitta telefondan bir nechta xodim belgilangan — tekshiring">⚠</span>{% endif %}
           {% if r.manual %}<span class="muted small" title="Qo'lda kiritilgan">✎</span>{% endif %}
           {% if r.note %}<div class="muted small">{{ r.note }}</div>{% endif %}

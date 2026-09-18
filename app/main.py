@@ -1164,11 +1164,14 @@ def absence_delete(request: Request, ab_id: int):
 # Admin — hisobot
 # --------------------------------------------------------------------------
 
-def build_report(conn, start: date, end: date, settings: dict | None = None):
+def build_report(conn, start: date, end: date, settings: dict | None = None,
+                 only_id: int | None = None):
     """Davr uchun har bir xodim kesimida yig'ma hisobot."""
     settings = settings or D.get_settings(conn)
     work_days = work_days_of(settings)
     employees = D.active_employees(conn)
+    if only_id is not None:
+        employees = [e for e in employees if e["id"] == only_id]
     days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
     workdays = [d for d in days if not is_rest_day(d, work_days)]
 
@@ -1223,9 +1226,14 @@ def build_report(conn, start: date, end: date, settings: dict | None = None):
                 missed += 1
             cells.append({
                 "date": ds, "day": d.day, "status": status, "weekend": weekend,
+                "weekday": WEEKDAYS_UZ[d.weekday()],
+                "label": f"{d.day}-{MONTHS_UZ[d.month - 1]}",
                 "check_in": hhmm(rec["check_in"]) if rec else "",
                 "check_out": hhmm(rec["check_out"]) if rec else "",
                 "late": rec["late_minutes"] if rec else 0,
+                "worked": worked_minutes(rec),
+                "note": (rec["note"] if rec else "") or "",
+                "manual": (rec["manual"] if rec else 0),
             })
 
         report.append({
@@ -1265,6 +1273,50 @@ def report_page(request: Request, boshi: str = "", oxiri: str = ""):
          "start": start.isoformat(), "end": end.isoformat(),
          "period_label": f"{uz_date(start)} — {uz_date(end)}",
          "work_days": work_days_of(settings),
+         "active": "report"},
+    )
+
+
+@app.get("/admin/xodim/{emp_id}", response_class=HTMLResponse)
+def employee_detail(request: Request, emp_id: int,
+                    boshi: str = "", oxiri: str = ""):
+    """Bitta xodimning davr bo'yicha kunma-kun davomati."""
+    with D.db() as conn:
+        settings = D.get_settings(conn)
+        if (r := guard(request, settings)):
+            return r
+
+        today = D.now().date()
+        start = D.parse_date(boshi, today.replace(day=1)) if boshi else today.replace(day=1)
+        end = D.parse_date(oxiri, today) if oxiri else today
+        if end < start:
+            start, end = end, start
+        if (end - start).days > 366:
+            end = start + timedelta(days=366)
+
+        emp = conn.execute(
+            "SELECT * FROM employees WHERE id = ?", (emp_id,)
+        ).fetchone()
+        if not emp:
+            return error_page("Xodim topilmadi",
+                              f"<p style='{DIM}'>Bu xodim o'chirilgan bo'lishi mumkin.</p>",
+                              404)
+
+        report, days = build_report(conn, start, end, settings, only_id=emp_id)
+
+    if not report:
+        return error_page("Ma'lumot yo'q",
+                          f"<p style='{DIM}'>Bu xodim faol emas.</p>", 404)
+    row = report[0]
+    # Aynan kechikkan kunlar — asosiy so'ralgan ma'lumot
+    late_days = [c for c in row["cells"] if c["status"] == "kechikdi"]
+
+    return templates.TemplateResponse(
+        request, "admin_employee.html",
+        {"request": request, "settings": settings, "emp": emp, "row": row,
+         "late_days": late_days,
+         "start": start.isoformat(), "end": end.isoformat(),
+         "period_label": f"{uz_date(start)} — {uz_date(end)}",
          "active": "report"},
     )
 
